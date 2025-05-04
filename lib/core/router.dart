@@ -20,7 +20,7 @@ final GoRouter router = GoRouter(
       path: '/register',
       builder: (context, state) => const RegisterPage(),
     ),
-    
+
     // Main App Routes
     GoRoute(
       path: '/books',
@@ -33,13 +33,13 @@ final GoRouter router = GoRouter(
         return BookDetailPage(bookId: bookId);
       },
     ),
-    
+
     // Borrow Routes
     GoRoute(
       path: '/borrow-history',
       builder: (context, state) => const BorrowHistoryPage(),
     ),
-    
+
     // Payment Routes
     GoRoute(
       path: '/payment/:id',
