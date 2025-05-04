@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// app_colors.dart digunakan untuk mendefinisikan warna-warna yang
+// digunakan dalam aplikasi. Warna-warna ini akan digunakan di
+// seluruh aplikasi untuk konsistensi tampilan dan nuansa
 class AppColors {
   static const primary = Color(0xFF3F51B5);
   static const secondary = Color(0xFF2196F3);

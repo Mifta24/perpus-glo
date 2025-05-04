@@ -7,6 +7,7 @@ import '../features/books/view/book_detail_page.dart';
 import '../features/borrow/view/borrow_history_page.dart';
 import '../features/payment/view/payment_page.dart';
 
+// router.dart digunakan untuk mengatur routing aplikasi menggunakan GoRouter
 final GoRouter router = GoRouter(
   initialLocation: '/login',
   routes: [

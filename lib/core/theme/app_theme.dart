@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 
+// app_theme.dart digunakan untuk mengatur tema aplikasi
+// dengan menggunakan ThemeData dari Flutter. Tema ini akan
+// digunakan di seluruh aplikasi untuk konsistensi tampilan
 class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(

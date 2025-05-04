@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../firebase_options.dart';
 
+// FirebaseService.dart digunakan untuk menginisialisasi Firebase
+// dan menyediakan instance dari FirebaseAuth, Firestore, dan FirebaseMessaging
 class FirebaseService {
   static Future<void> initialize() async {
     await Firebase.initializeApp(
