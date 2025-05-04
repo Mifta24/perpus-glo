@@ -1,0 +1,217 @@
+.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../common/widgets/loading_indicator.dart';
+import '../model/notification_model.dart';
+import '../providers/notification_provider.dart';
+
+class NotificationPage extends ConsumerWidget {
+  const NotificationPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notificationsAsync = ref.watch(userNotificationsProvider);
+    final controller = ref.watch(notificationControllerProvider);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notifikasi'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.done_all),
+            onPressed: controller.isLoading
+                ? null
+                : () {
+                    ref.read(notificationControllerProvider.notifier).markAllAsRead();
+                  },
+            tooltip: 'Tandai semua sudah dibaca',
+          ),
+        ],
+      ),
+      body: notificationsAsync.when(
+        data: (notifications) {
+          if (notifications.isEmpty) {
+            return const Center(
+              child: Text('Belum ada notifikasi'),
+            );
+          }
+          
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              return _buildNotificationItem(context, ref, notification);
+            },
+          );
+        },
+        loading: () => const Center(child: LoadingIndicator()),
+        error: (error, stack) => Center(
+          child: Text('Error: ${error.toString()}'),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildNotificationItem(BuildContext context, WidgetRef ref, NotificationModel notification) {
+    final dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+    
+    return Dismissible(
+      key: Key(notification.id),
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 16),
+        child: const Icon(
+          Icons.delete,
+          color: Colors.white,
+        ),
+      ),
+      direction: DismissDirection.endToStart,
+      onDismissed: (direction) {
+        ref.read(notificationControllerProvider.notifier)
+            .deleteNotification(notification.id);
+      },
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        color: notification.isRead ? null : Colors.blue.shade50,
+        child: InkWell(
+          onTap: () {
+            // Mark as read
+            if (!notification.isRead) {
+              ref.read(notificationControllerProvider.notifier)
+                  .markAsRead(notification.id);
+            }
+            
+            // Navigate based on notification type and data
+            _handleNotificationTap(context, notification);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row with type icon and date
+                Row(
+                  children: [
+                    _buildTypeIcon(notification.type),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        notification.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      dateFormat.format(notification.createdAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Notification body
+                Text(notification.body),
+                
+                // Unread indicator
+                if (!notification.isRead)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      width: 12,
+                      height: 12,
+                      decoration: const BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildTypeIcon(NotificationType type) {
+    IconData icon;
+    Color color;
+    
+    switch (type) {
+      case NotificationType.reminder:
+        icon = Icons.alarm;
+        color = Colors.orange;
+        break;
+      case NotificationType.overdue:
+        icon = Icons.warning;
+        color = Colors.red;
+        break;
+      case NotificationType.fine:
+        icon = Icons.attach_money;
+        color = Colors.red;
+        break;
+      case NotificationType.info:
+        icon = Icons.info;
+        color = Colors.blue;
+        break;
+      case NotificationType.bookReady:
+        icon = Icons.book;
+        color = Colors.green;
+        break;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        color: color,
+        size: 24,
+      ),
+    );
+  }
+  
+  void _handleNotificationTap(BuildContext context, NotificationModel notification) {
+    if (notification.data == null) return;
+    
+    switch (notification.type) {
+      case NotificationType.reminder:
+      case NotificationType.overdue:
+        final borrowId = notification.data?['borrowId'] as String?;
+        if (borrowId != null) {
+          context.push('/borrow/$borrowId');
+        }
+        break;
+      case NotificationType.fine:
+        final borrowId = notification.data?['borrowId'] as String?;
+        final amount = (notification.data?['amount'] as num?)?.toDouble() ?? 0.0;
+        if (borrowId != null) {
+          context.push('/payment/$borrowId?amount=$amount');
+        }
+        break;
+      case NotificationType.bookReady:
+        final bookId = notification.data?['bookId'] as String?;
+        if (bookId != null) {
+          context.push('/books/$bookId');
+        }
+        break;
+      case NotificationType.info:
+        // Just show the notification, no navigation
+        break;
+    }
+  }
+}
