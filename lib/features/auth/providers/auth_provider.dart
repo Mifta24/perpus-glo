@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/auth_repository.dart';
 import '../model/user_model.dart';
+import '../../history/data/history_repository.dart';
+import '../../history/model/history_model.dart';
 
 // Auth state provider
 final authStateProvider = StreamProvider<User?>((ref) {
@@ -29,6 +31,7 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
 // Auth controller for login, register, etc.
 class AuthController extends StateNotifier<AsyncValue<void>> {
   final AuthRepository _repository;
+  final HistoryRepository _historyRepository = HistoryRepository();
   
   AuthController(this._repository) : super(const AsyncValue.data(null));
   
@@ -36,6 +39,11 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       await _repository.signInWithEmailAndPassword(email, password);
+      // After successful login
+      await _historyRepository.addActivity(
+        activityType: ActivityType.login,
+        description: 'Login berhasil dengan email $email',
+      );
       state = const AsyncValue.data(null);
       return true;
     } on FirebaseAuthException catch (e) {
@@ -48,6 +56,15 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       await _repository.registerWithEmailAndPassword(name, email, password);
+      // After successful registration
+      await _historyRepository.addActivity(
+        activityType: ActivityType.register,
+        description: 'Pendaftaran akun baru dengan email $email',
+        metadata: {
+          'name': name,
+          'email': email,
+        },
+      );
       state = const AsyncValue.data(null);
       return true;
     } on FirebaseAuthException catch (e) {
