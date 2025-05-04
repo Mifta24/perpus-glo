@@ -5,6 +5,7 @@ import '../features/auth/view/register_page.dart';
 import '../features/books/view/books_page.dart';
 import '../features/books/view/book_detail_page.dart';
 import '../features/borrow/view/borrow_history_page.dart';
+import '../features/borrow/view/borrow_detail_page.dart';
 import '../features/payment/view/payment_page.dart';
 
 // router.dart digunakan untuk mengatur routing aplikasi menggunakan GoRouter
@@ -39,13 +40,21 @@ final GoRouter router = GoRouter(
       path: '/borrow-history',
       builder: (context, state) => const BorrowHistoryPage(),
     ),
+    GoRoute(
+      path: '/borrow/:id',
+      builder: (context, state) {
+        final borrowId = state.pathParameters['id'] ?? '';
+        return BorrowDetailPage(borrowId: borrowId);
+      },
+    ),
 
     // Payment Routes
     GoRoute(
       path: '/payment/:id',
       builder: (context, state) {
         final fineId = state.pathParameters['id'] ?? '';
-        return PaymentPage(fineId: fineId);
+        final amount = double.tryParse(state.queryParameters['amount'] ?? '0') ?? 0.0;
+        return PaymentPage(fineId: fineId, amount: amount);
       },
     ),
   ],
