@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/firebase_service.dart';
 import '../model/book_model.dart';
 
+// BookRepository digunakan untuk mengambil data buku dari Firestore
 class BookRepository {
   final FirebaseFirestore _firestore = FirebaseService.firestore;
   final FirebaseAuth _auth = FirebaseService.auth;
