@@ -4,6 +4,7 @@ import 'core/services/firebase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router.dart';
 import 'features/notification/service/notification_service.dart';
+import 'features/categories/providers/category_provider.dart'; // Tambahkan import ini
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,11 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Initialize default categories when app starts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryControllerProvider.notifier).initializeDefaultCategories();
+    });
+    
     return MaterialApp.router(
       title: 'Perpus GLO',
       theme: AppTheme.lightTheme,

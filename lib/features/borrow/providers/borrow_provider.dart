@@ -32,6 +32,12 @@ final filteredBorrowsProvider = Provider<List<BorrowModel>>((ref) {
   );
 });
 
+// Provider for active borrows
+final activeBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
+  final repository = ref.watch(borrowRepositoryProvider);
+  return repository.getActiveBorrows();
+});
+
 // Controller untuk aksi peminjaman
 class BorrowController extends StateNotifier<AsyncValue<void>> {
   final BorrowRepository _repository;

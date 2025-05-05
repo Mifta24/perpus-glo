@@ -23,6 +23,14 @@ final unreadNotificationsCountProvider = Provider<int>((ref) {
   );
 });
 
+// Add this provider
+final unreadNotificationCountProvider = StreamProvider<int>((ref) {
+  final notificationService = ref.watch(notificationServiceProvider);
+  return notificationService.getUserNotifications().map(
+    (notifications) => notifications.where((notification) => !notification.isRead).length,
+  );
+});
+
 // Controller for notification actions
 class NotificationStateController extends StateNotifier<AsyncValue<void>> {
   final NotificationService _service;

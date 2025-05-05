@@ -41,7 +41,7 @@ class _BooksPageState extends ConsumerState<BooksPage> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final categories = ref.watch(categoriesProvider);
+    final categories = ref.watch(bookCategoriesProvider);
     
     return Scaffold(
       appBar: AppBar(

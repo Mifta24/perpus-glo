@@ -30,7 +30,7 @@ final bookByIdProvider = FutureProvider.family<BookModel?, String>((ref, id) asy
 });
 
 // Provider untuk daftar kategori
-final categoriesProvider = FutureProvider<List<String>>((ref) {
+final bookCategoriesProvider = FutureProvider<List<String>>((ref) {
   final repository = ref.watch(bookRepositoryProvider);
   return repository.getCategories();
 });
@@ -69,4 +69,18 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
 final borrowControllerProvider = StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
   final repository = ref.watch(bookRepositoryProvider);
   return BorrowController(repository);
+});
+
+// Tambahkan providers berikut
+
+// Provider for popular books
+final popularBooksProvider = StreamProvider<List<BookModel>>((ref) {
+  final repository = ref.watch(bookRepositoryProvider);
+  return repository.getBooksByPopularity(limit: 10);
+});
+
+// Provider for latest books
+final latestBooksProvider = StreamProvider<List<BookModel>>((ref) {
+  final repository = ref.watch(bookRepositoryProvider);
+  return repository.getLatestBooks(limit: 10);
 });

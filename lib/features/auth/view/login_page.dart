@@ -33,7 +33,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       );
       
       if (success && mounted) {
-        context.go('/books');
+        context.go('/home');
       }
     }
   }

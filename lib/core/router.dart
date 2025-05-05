@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:perpusglo/features/categories/view/category_detail_page.dart';
 import '../features/auth/view/login_page.dart';
 import '../features/auth/view/register_page.dart';
+import '../features/home/view/main_navigation.dart';
 import '../features/books/view/books_page.dart';
 import '../features/books/view/book_detail_page.dart';
 import '../features/borrow/view/borrow_history_page.dart';
@@ -14,10 +17,12 @@ import '../features/profile/view/profile_page.dart';
 import '../features/profile/view/edit_profile_page.dart';
 import '../features/profile/view/settings_page.dart';
 
-
 // router.dart digunakan untuk mengatur routing aplikasi menggunakan GoRouter
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final GoRouter router = GoRouter(
   initialLocation: '/login',
+  navigatorKey: _rootNavigatorKey,
   routes: [
     // Auth Routes
     GoRoute(
@@ -29,20 +34,35 @@ final GoRouter router = GoRouter(
       builder: (context, state) => const RegisterPage(),
     ),
 
-    // Main App Routes
+    // Main navigation route
+    GoRoute(
+      path: '/home',
+      builder: (context, state) => const MainNavigationPage(initialIndex: 0),
+    ),
     GoRoute(
       path: '/books',
-      builder: (context, state) => const BooksPage(),
+      builder: (context, state) => const MainNavigationPage(initialIndex: 1),
     ),
     GoRoute(
-      path: '/books/:id',
-      builder: (context, state) {
-        final bookId = state.pathParameters['id'] ?? '';
-        return BookDetailPage(bookId: bookId);
-      },
+      path: '/borrows',
+      builder: (context, state) => const MainNavigationPage(initialIndex: 2),
+    ),
+    GoRoute(
+      path: '/notifications',
+      builder: (context, state) => const MainNavigationPage(initialIndex: 3),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const MainNavigationPage(initialIndex: 4),
     ),
 
-    // Borrow Routes
+    // Detail routes
+    GoRoute(
+      path: '/books/:id',
+      builder: (context, state) => BookDetailPage(
+        bookId: state.pathParameters['id']!,
+      ),
+    ),
     GoRoute(
       path: '/borrow-history',
       builder: (context, state) => const BorrowHistoryPage(),
@@ -54,8 +74,6 @@ final GoRouter router = GoRouter(
         return BorrowDetailPage(borrowId: borrowId);
       },
     ),
-
-    // Payment Routes
     GoRoute(
       path: '/payment/:id',
       builder: (context, state) {
@@ -66,36 +84,50 @@ final GoRouter router = GoRouter(
       },
     ),
     GoRoute(
+      path: '/history',
+      builder: (context, state) => const HistoryPage(),
+    ),
+    GoRoute(
       path: '/payment-history',
       builder: (context, state) => const PaymentHistoryPage(),
     ),
 
-    // Notification Route
+    //  Categories routes
     GoRoute(
-      path: '/notifications',
-      builder: (context, state) => const NotificationPage(),
+      path: '/categories/:categoryId',
+      builder: (context, state) {
+        final categoryId = state.pathParameters['categoryId'] ?? '';
+        return CategoryDetailPage(categoryId: categoryId);
+      },
     ),
 
-    // History Route
-    GoRoute(
-      path: '/history',
-      builder: (context, state) => const HistoryPage(),
-    ),
-
-    // Profile Routes
-    GoRoute(
-      path: '/profile',
-      builder: (context, state) => const ProfilePage(),
-    ),
-    
+    // Profile routes
     GoRoute(
       path: '/profile/edit',
       builder: (context, state) => const EditProfilePage(),
     ),
-    
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsPage(),
     ),
   ],
+  // Redirect to login if not authenticated
+  redirect: (context, state) {
+    final isLoggedIn = FirebaseAuth.instance.currentUser != null;
+
+    // List of paths that don't require authentication
+    final nonAuthRoutes = ['/login', '/register'];
+
+    // If not logged in and trying to access protected route, redirect to login
+    if (!isLoggedIn && !nonAuthRoutes.contains(state.matchedLocation)) {
+      return '/login';
+    }
+
+    // If logged in and trying to access login/register, redirect to home
+    if (isLoggedIn && nonAuthRoutes.contains(state.matchedLocation)) {
+      return '/home';
+    }
+
+    return null;
+  },
 );

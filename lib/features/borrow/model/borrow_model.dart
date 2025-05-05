@@ -50,6 +50,7 @@ class BorrowModel {
   // Properti tambahan untuk UI, tidak disimpan di Firestore
   final String? bookTitle;
   final String? bookCover;
+  final String? booksAuthor;
   
   BorrowModel({
     required this.id,
@@ -63,6 +64,7 @@ class BorrowModel {
     required this.isPaid,
     this.bookTitle,
     this.bookCover,
+    this.booksAuthor,
   });
   
   factory BorrowModel.fromJson(Map<String, dynamic> json) {
@@ -100,7 +102,7 @@ class BorrowModel {
       // Properti UI tidak disimpan
     };
   }
-  
+  // update method toJson() to include bookTitle and bookCover
   BorrowModel copyWith({
     String? id,
     String? userId,

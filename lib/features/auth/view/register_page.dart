@@ -38,7 +38,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       );
       
       if (success && mounted) {
-        context.go('/books');
+        context.go('/home');
       }
     }
   }
