@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/auth_repository.dart';
 import '../model/user_model.dart';
@@ -15,7 +16,7 @@ final authStateProvider = StreamProvider<User?>((ref) {
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   final authState = ref.watch(authStateProvider);
   final repository = ref.watch(authRepositoryProvider);
-  
+
   return authState.when(
     data: (user) async {
       if (user != null) {
@@ -32,18 +33,26 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
 class AuthController extends StateNotifier<AsyncValue<void>> {
   final AuthRepository _repository;
   final HistoryRepository _historyRepository = HistoryRepository();
-  
+
   AuthController(this._repository) : super(const AsyncValue.data(null));
-  
+
   Future<bool> login(String email, String password) async {
     state = const AsyncValue.loading();
     try {
+      // Proses login
       await _repository.signInWithEmailAndPassword(email, password);
-      // After successful login
-      await _historyRepository.addActivity(
-        activityType: ActivityType.login,
-        description: 'Login berhasil dengan email $email',
-      );
+
+      // Catat aktivitas dalam try-catch terpisah
+      try {
+        await _historyRepository.addActivity(
+          activityType: ActivityType.login,
+          description: 'Login berhasil dengan email $email',
+        );
+      } catch (historyError) {
+        // Log error tapi jangan gagalkan proses login
+        debugPrint('Error saat mencatat history: $historyError');
+      }
+
       state = const AsyncValue.data(null);
       return true;
     } on FirebaseAuthException catch (e) {
@@ -51,20 +60,28 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
-  
+
   Future<bool> register(String name, String email, String password) async {
     state = const AsyncValue.loading();
     try {
+      // Proses registrasi
       await _repository.registerWithEmailAndPassword(name, email, password);
-      // After successful registration
-      await _historyRepository.addActivity(
-        activityType: ActivityType.register,
-        description: 'Pendaftaran akun baru dengan email $email',
-        metadata: {
-          'name': name,
-          'email': email,
-        },
-      );
+
+      // Catat aktivitas dalam try-catch terpisah
+      try {
+        await _historyRepository.addActivity(
+          activityType: ActivityType.register,
+          description: 'Pendaftaran akun baru dengan email $email',
+          metadata: {
+            'name': name,
+            'email': email,
+          },
+        );
+      } catch (historyError) {
+        // Log error tapi jangan gagalkan proses register
+        debugPrint('Error saat mencatat history: $historyError');
+      }
+
       state = const AsyncValue.data(null);
       return true;
     } on FirebaseAuthException catch (e) {
@@ -72,13 +89,14 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
-  
+
   Future<void> logout() async {
     await _repository.signOut();
   }
 }
 
-final authControllerProvider = StateNotifierProvider<AuthController, AsyncValue<void>>((ref) {
+final authControllerProvider =
+    StateNotifierProvider<AuthController, AsyncValue<void>>((ref) {
   final repository = ref.watch(authRepositoryProvider);
   return AuthController(repository);
 });
