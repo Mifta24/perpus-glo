@@ -45,6 +45,7 @@ dependencies:
 
   # 🔀 Routing (jika pakai GoRouter, opsional)
   go_router: ^13.2.2
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
