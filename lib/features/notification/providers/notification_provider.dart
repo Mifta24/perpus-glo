@@ -24,10 +24,10 @@ final unreadNotificationsCountProvider = Provider<int>((ref) {
 });
 
 // Controller for notification actions
-class NotificationController extends StateNotifier<AsyncValue<void>> {
+class NotificationStateController extends StateNotifier<AsyncValue<void>> {
   final NotificationService _service;
   
-  NotificationController(this._service) : super(const AsyncValue.data(null));
+  NotificationStateController(this._service) : super(const AsyncValue.data(null));
   
   Future<void> markAsRead(String notificationId) async {
     state = const AsyncValue.loading();
@@ -100,7 +100,7 @@ class NotificationController extends StateNotifier<AsyncValue<void>> {
   }
 }
 
-final notificationControllerProvider = StateNotifierProvider<NotificationController, AsyncValue<void>>((ref) {
+final notificationControllerProvider = StateNotifierProvider<NotificationStateController, AsyncValue<void>>((ref) {
   final service = ref.watch(notificationServiceProvider);
-  return NotificationController(service);
+  return NotificationStateController(service);
 });

@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/services/firebase_service.dart';
-import '../model/notification_model.dart';
+import '../model/notification_model.dart' as models;
+import '../controller/notification_controller.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -23,47 +24,59 @@ class NotificationService {
   
   // Initialize notifications
   Future<void> initialize() async {
-    await AwesomeNotifications().initialize(
-      'resource://drawable/app_icon', // Replace with your app icon
-      [
-        NotificationChannel(
-          channelGroupKey: 'basic_channel_group',
-          channelKey: 'basic_channel',
-          channelName: 'Basic Notifications',
-          channelDescription: 'Notification channel for basic notifications',
-          defaultColor: Colors.blue,
-          ledColor: Colors.white,
-          importance: NotificationImportance.High,
-        ),
-        NotificationChannel(
-          channelGroupKey: 'reminder_channel_group',
-          channelKey: 'reminder_channel',
-          channelName: 'Reminder Notifications',
-          channelDescription: 'Notification channel for reminders',
-          defaultColor: Colors.orange,
-          ledColor: Colors.orange,
-          importance: NotificationImportance.High,
-        ),
-      ],
-      channelGroups: [
-        NotificationChannelGroup(
-          channelGroupKey: 'basic_channel_group',
-          channelGroupName: 'Basic Group',
-        ),
-        NotificationChannelGroup(
-          channelGroupKey: 'reminder_channel_group',
-          channelGroupName: 'Reminder Group',
-        ),
-      ],
-      debug: true,
-    );
-    
-    // Request notification permissions
-    await AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
-      if (!isAllowed) {
-        AwesomeNotifications().requestPermissionToSendNotifications();
-      }
-    });
+    try {
+      await AwesomeNotifications().initialize(
+        'resource://drawable/app_icon', // Replace with your app icon
+        [
+          NotificationChannel(
+            channelGroupKey: 'basic_channel_group',
+            channelKey: 'basic_channel',
+            channelName: 'Basic Notifications',
+            channelDescription: 'Notification channel for basic notifications',
+            defaultColor: Colors.blue,
+            ledColor: Colors.white,
+            importance: NotificationImportance.High,
+          ),
+          NotificationChannel(
+            channelGroupKey: 'reminder_channel_group',
+            channelKey: 'reminder_channel',
+            channelName: 'Reminder Notifications',
+            channelDescription: 'Notification channel for reminders',
+            defaultColor: Colors.orange,
+            ledColor: Colors.orange,
+            importance: NotificationImportance.High,
+          ),
+        ],
+        channelGroups: [
+          NotificationChannelGroup(
+            channelGroupKey: 'basic_channel_group',
+            channelGroupName: 'Basic Group',
+          ),
+          NotificationChannelGroup(
+            channelGroupKey: 'reminder_channel_group',
+            channelGroupName: 'Reminder Group',
+          ),
+        ],
+        debug: true,
+      );
+      
+      // Set up notification handlers
+      AwesomeNotifications().setListeners(
+        onActionReceivedMethod:    NotificationController.onActionReceivedMethod,
+        onNotificationCreatedMethod:  NotificationController.onNotificationCreatedMethod,
+        onNotificationDisplayedMethod: NotificationController.onNotificationDisplayedMethod,
+        onDismissActionReceivedMethod: NotificationController.onDismissActionReceivedMethod
+      );
+      
+      // Request notification permissions
+      await AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
+        if (!isAllowed) {
+          AwesomeNotifications().requestPermissionToSendNotifications();
+        }
+      });
+    } catch (e) {
+      debugPrint('Error initializing notifications: $e');
+    }
   }
   
   // Send local notification
@@ -71,10 +84,10 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    NotificationType type = NotificationType.info,
+    models.NotificationType type = models.NotificationType.info,
     Map<String, String>? payload,
   }) async {
-    String channelKey = type == NotificationType.reminder || type == NotificationType.overdue
+    String channelKey = type == models.NotificationType.reminder || type == models.NotificationType.overdue
         ? 'reminder_channel'
         : 'basic_channel';
         
@@ -92,10 +105,10 @@ class NotificationService {
   }
   
   // Create notification in Firestore
-  Future<NotificationModel> createNotification({
+  Future<models.NotificationModel> createNotification({
     required String title,
     required String body,
-    required NotificationType type,
+    required models.NotificationType type,
     Map<String, dynamic>? data,
   }) async {
     final userId = currentUserId;
@@ -105,7 +118,7 @@ class NotificationService {
     
     final notificationId = _notificationsRef.doc().id;
     
-    final notification = NotificationModel(
+    final notification = models.NotificationModel(
       id: notificationId,
       userId: userId,
       title: title,
@@ -131,7 +144,7 @@ class NotificationService {
   }
   
   // Get user notifications
-  Stream<List<NotificationModel>> getUserNotifications() {
+  Stream<List<models.NotificationModel>> getUserNotifications() {
     final userId = currentUserId;
     if (userId == null) {
       return Stream.value([]);
@@ -143,7 +156,7 @@ class NotificationService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            return NotificationModel.fromJson({
+            return models.NotificationModel.fromJson({
               'id': doc.id,
               ...doc.data() as Map<String, dynamic>,
             });
@@ -189,36 +202,49 @@ class NotificationService {
     required String bookTitle,
     required DateTime dueDate,
   }) async {
-    // Schedule reminder 1 day before due date
-    final reminderDate = dueDate.subtract(const Duration(days: 1));
-    
-    // Check if reminder date is in the future
-    if (reminderDate.isAfter(DateTime.now())) {
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          id: borrowId.hashCode,
-          channelKey: 'reminder_channel',
+    try {
+      // Schedule reminder 1 day before due date
+      final reminderDate = dueDate.subtract(const Duration(days: 1));
+      
+      // Check if reminder date is in the future
+      if (reminderDate.isAfter(DateTime.now())) {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: borrowId.hashCode,
+            channelKey: 'reminder_channel',
+            title: 'Pengingat Pengembalian Buku',
+            body: 'Buku "$bookTitle" harus dikembalikan besok',
+            notificationLayout: NotificationLayout.Default,
+            category: NotificationCategory.Reminder,
+            payload: {
+              'borrowId': borrowId,
+            },
+          ),
+          schedule: NotificationCalendar(
+            year: reminderDate.year,
+            month: reminderDate.month,
+            day: reminderDate.day,
+            hour: reminderDate.hour,
+            minute: reminderDate.minute,
+            second: 0,
+            millisecond: 0,
+            allowWhileIdle: true,
+          ),
+        );
+        
+        // Also create a Firestore notification that will be displayed in the app
+        await createNotification(
           title: 'Pengingat Pengembalian Buku',
           body: 'Buku "$bookTitle" harus dikembalikan besok',
-          notificationLayout: NotificationLayout.Default,
-          category: NotificationCategory.Reminder,
-          payload: {
+          type: models.NotificationType.reminder,
+          data: {
             'borrowId': borrowId,
+            'scheduledFor': reminderDate.toIso8601String(),
           },
-        ),
-        schedule: NotificationCalendar.fromDate(date: reminderDate),
-      );
-      
-      // Also create a Firestore notification that will be displayed in the app
-      await createNotification(
-        title: 'Pengingat Pengembalian Buku',
-        body: 'Buku "$bookTitle" harus dikembalikan besok',
-        type: NotificationType.reminder,
-        data: {
-          'borrowId': borrowId,
-          'scheduledFor': reminderDate.toIso8601String(),
-        },
-      );
+        );
+      }
+    } catch (e) {
+      debugPrint('Error scheduling reminder: $e');
     }
   }
   
@@ -229,9 +255,9 @@ class NotificationService {
   
   // Listen to notification actions (for handling notification taps)
   Stream<ReceivedAction> get actionStream => 
-      AwesomeNotifications().actionStream;
+      NotificationController.actionStream;
   
   void dispose() {
-    AwesomeNotifications().actionSink.close();
+    // Do nothing, we manage stream in NotificationController
   }
 }
