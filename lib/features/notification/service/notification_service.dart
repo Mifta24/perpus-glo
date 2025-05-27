@@ -8,20 +8,21 @@ import '../controller/notification_controller.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
-  
+
   factory NotificationService() => _instance;
-  
+
   NotificationService._internal();
-  
+
   final FirebaseAuth _auth = FirebaseService.auth;
   final FirebaseFirestore _firestore = FirebaseService.firestore;
-  
+
   // Collection references
-  CollectionReference get _notificationsRef => _firestore.collection('notifications');
-  
+  CollectionReference get _notificationsRef =>
+      _firestore.collection('notifications');
+
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
-  
+
   // Initialize notifications
   Future<void> initialize() async {
     try {
@@ -59,15 +60,17 @@ class NotificationService {
         ],
         debug: true,
       );
-      
+
       // Set up notification handlers
       AwesomeNotifications().setListeners(
-        onActionReceivedMethod:    NotificationController.onActionReceivedMethod,
-        onNotificationCreatedMethod:  NotificationController.onNotificationCreatedMethod,
-        onNotificationDisplayedMethod: NotificationController.onNotificationDisplayedMethod,
-        onDismissActionReceivedMethod: NotificationController.onDismissActionReceivedMethod
-      );
-      
+          onActionReceivedMethod: NotificationController.onActionReceivedMethod,
+          onNotificationCreatedMethod:
+              NotificationController.onNotificationCreatedMethod,
+          onNotificationDisplayedMethod:
+              NotificationController.onNotificationDisplayedMethod,
+          onDismissActionReceivedMethod:
+              NotificationController.onDismissActionReceivedMethod);
+
       // Request notification permissions
       await AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
         if (!isAllowed) {
@@ -78,7 +81,7 @@ class NotificationService {
       debugPrint('Error initializing notifications: $e');
     }
   }
-  
+
   // Send local notification
   Future<void> showNotification({
     required int id,
@@ -87,10 +90,11 @@ class NotificationService {
     models.NotificationType type = models.NotificationType.info,
     Map<String, String>? payload,
   }) async {
-    String channelKey = type == models.NotificationType.reminder || type == models.NotificationType.overdue
+    String channelKey = type == models.NotificationType.reminder ||
+            type == models.NotificationType.overdue
         ? 'reminder_channel'
         : 'basic_channel';
-        
+
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
         id: id,
@@ -103,7 +107,7 @@ class NotificationService {
       ),
     );
   }
-  
+
   // Create notification in Firestore
   Future<models.NotificationModel> createNotification({
     required String title,
@@ -115,9 +119,9 @@ class NotificationService {
     if (userId == null) {
       throw Exception('User not authenticated');
     }
-    
+
     final notificationId = _notificationsRef.doc().id;
-    
+
     final notification = models.NotificationModel(
       id: notificationId,
       userId: userId,
@@ -128,9 +132,9 @@ class NotificationService {
       isRead: false,
       data: data,
     );
-    
+
     await _notificationsRef.doc(notificationId).set(notification.toJson());
-    
+
     // Show local notification
     await showNotification(
       id: notificationId.hashCode,
@@ -139,63 +143,63 @@ class NotificationService {
       type: type,
       payload: data?.map((key, value) => MapEntry(key, value.toString())),
     );
-    
+
     return notification;
   }
-  
+
   // Get user notifications
   Stream<List<models.NotificationModel>> getUserNotifications() {
     final userId = currentUserId;
     if (userId == null) {
       return Stream.value([]);
     }
-    
+
     return _notificationsRef
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            return models.NotificationModel.fromJson({
-              'id': doc.id,
-              ...doc.data() as Map<String, dynamic>,
-            });
-          }).toList();
+      return snapshot.docs.map((doc) {
+        return models.NotificationModel.fromJson({
+          'id': doc.id,
+          ...doc.data() as Map<String, dynamic>,
         });
+      }).toList();
+    });
   }
-  
+
   // Mark notification as read
   Future<void> markAsRead(String notificationId) async {
     await _notificationsRef.doc(notificationId).update({
       'isRead': true,
     });
   }
-  
+
   // Mark all notifications as read
   Future<void> markAllAsRead() async {
     final userId = currentUserId;
     if (userId == null) {
       return;
     }
-    
+
     final batch = _firestore.batch();
     final unreadNotifications = await _notificationsRef
         .where('userId', isEqualTo: userId)
         .where('isRead', isEqualTo: false)
         .get();
-    
+
     for (var doc in unreadNotifications.docs) {
       batch.update(doc.reference, {'isRead': true});
     }
-    
+
     await batch.commit();
   }
-  
+
   // Delete notification
   Future<void> deleteNotification(String notificationId) async {
     await _notificationsRef.doc(notificationId).delete();
   }
-  
+
   // Schedule reminder notification for book due date
   Future<void> scheduleReturnReminder({
     required String borrowId,
@@ -205,7 +209,7 @@ class NotificationService {
     try {
       // Schedule reminder 1 day before due date
       final reminderDate = dueDate.subtract(const Duration(days: 1));
-      
+
       // Check if reminder date is in the future
       if (reminderDate.isAfter(DateTime.now())) {
         await AwesomeNotifications().createNotification(
@@ -231,7 +235,7 @@ class NotificationService {
             allowWhileIdle: true,
           ),
         );
-        
+
         // Also create a Firestore notification that will be displayed in the app
         await createNotification(
           title: 'Pengingat Pengembalian Buku',
@@ -247,17 +251,29 @@ class NotificationService {
       debugPrint('Error scheduling reminder: $e');
     }
   }
-  
+
   // Cancel scheduled notification
   Future<void> cancelScheduledNotification(int notificationId) async {
     await AwesomeNotifications().cancel(notificationId);
   }
-  
+
   // Listen to notification actions (for handling notification taps)
-  Stream<ReceivedAction> get actionStream => 
+  Stream<ReceivedAction> get actionStream =>
       NotificationController.actionStream;
-  
+
   void dispose() {
     // Do nothing, we manage stream in NotificationController
+  }
+
+  // Tambahkan metode ini di NotificationService
+  Future<void> sendTestNotification() async {
+    await createNotification(
+      title: 'Notifikasi Test',
+      body: 'Ini adalah notifikasi pengujian fitur notifikasi',
+      type: models.NotificationType.info,
+      data: {
+        'testData': 'Ini adalah data pengujian',
+      },
+    );
   }
 }
