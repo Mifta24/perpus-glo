@@ -110,7 +110,8 @@ class ProfileRepository {
   }
 
   // Update user password in Firebase Auth
-  Future<void> updatePassword(String currentPassword, String newPassword) async {
+  Future<void> updatePassword(
+      String currentPassword, String newPassword) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('User tidak ditemukan');
@@ -153,6 +154,90 @@ class ProfileRepository {
 
     // Delete the user account
     await user.delete();
+  }
+
+  // Get all users (for admin)
+
+  Stream<List<UserProfileModel>> getAllUsers() {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return Stream.value([]);
+    }
+
+    return _usersRef.snapshots().asyncMap((snapshot) async {
+      final currentUserDoc = await _usersRef.doc(currentUser.uid).get();
+      final currentUserData = currentUserDoc.data() as Map<String, dynamic>?;
+
+      if (currentUserData == null) {
+        return [];
+      }
+
+      // Parse role dari currentUserData
+      final currentUserRole =
+          _roleFromString(currentUserData['role'] ?? 'user');
+
+      // Cek apakah user adalah admin atau pustakawan
+      if (currentUserRole != UserRole.admin &&
+          currentUserRole != UserRole.librarian) {
+        return [];
+      }
+
+      // Jika user adalah admin atau pustakawan, kembalikan semua user
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return UserProfileModel.fromJson({
+          'id': doc.id,
+          ...data,
+        });
+      }).toList();
+    });
+  }
+
+// Fungsi helper untuk mengkonversi string role ke enum UserRole
+  UserRole _roleFromString(String role) {
+    switch (role.toLowerCase()) {
+      case 'admin':
+        return UserRole.admin;
+      case 'librarian':
+        return UserRole.librarian;
+      case 'user':
+      default:
+        return UserRole.user;
+    }
+  }
+
+  // Get user count (for admin)
+  Future<int> getUserCount() async {
+    final snapshot = await _usersRef.get();
+    return snapshot.docs.length;
+  }
+
+  // Get user by ID (for admin)
+  Stream<UserProfileModel?> getUserById(String userId) {
+    return _usersRef.doc(userId).snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        return null;
+      }
+      return UserProfileModel.fromJson({
+        'id': snapshot.id,
+        ...snapshot.data() as Map<String, dynamic>,
+      });
+    });
+  }
+
+  // Update user role (for admin)
+  Future<void> updateUserRole(String userId, UserRole role) async {
+    await _usersRef.doc(userId).update({'role': role.toString().split('.').last});
+  }
+
+  // Deactivate user account (for admin)
+  Future<void> deactivateUser(String userId) async {
+    await _usersRef.doc(userId).update({'isActive': false});
+  }
+
+  // Activate user account (for admin)
+  Future<void> activateUser(String userId) async {
+    await _usersRef.doc(userId).update({'isActive': true});
   }
 }
 

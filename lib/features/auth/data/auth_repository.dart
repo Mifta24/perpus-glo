@@ -10,12 +10,13 @@ class AuthRepository {
 
   // Get current user
   User? get currentUser => _auth.currentUser;
-  
+
   // Auth state changes
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Sign in with email and password
-  Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
+  Future<UserCredential> signInWithEmailAndPassword(
+      String email, String password) async {
     return await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
@@ -25,7 +26,7 @@ class AuthRepository {
   // Register with email and password
   Future<UserCredential> registerWithEmailAndPassword(
     String name,
-    String email, 
+    String email,
     String password,
   ) async {
     // Create user in Firebase Auth
@@ -33,7 +34,7 @@ class AuthRepository {
       email: email,
       password: password,
     );
-    
+
     // Create user document in Firestore
     if (userCredential.user != null) {
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
@@ -46,8 +47,14 @@ class AuthRepository {
         'fineAmount': 0.0,
       });
     }
-    
+
     return userCredential;
+  }
+
+// Reset password
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    return await _auth.sendPasswordResetEmail(email: email);
   }
 
   // Sign out

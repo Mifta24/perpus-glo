@@ -90,6 +90,42 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  Future<void> resetPassword(String email) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.sendPasswordResetEmail(email);
+      state = const AsyncValue.data(null);
+    } on FirebaseAuthException catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+    }
+  }
+
+  // Staff login 
+  Future<bool> staffLogin(String email, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      // Proses login staff
+      await _repository.signInWithEmailAndPassword(email, password);
+
+      // Catat aktivitas dalam try-catch terpisah
+      try {
+        await _historyRepository.addActivity(
+          activityType: ActivityType.login,
+          description: 'Staff login berhasil dengan email $email',
+        );
+      } catch (historyError) {
+        // Log error tapi jangan gagalkan proses login
+        debugPrint('Error saat mencatat history: $historyError');
+      }
+
+      state = const AsyncValue.data(null);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _repository.signOut();
   }

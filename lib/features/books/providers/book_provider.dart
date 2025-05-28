@@ -9,13 +9,15 @@ final booksProvider = StreamProvider<List<BookModel>>((ref) {
 });
 
 // Provider untuk buku berdasarkan kategori
-final booksByCategoryProvider = StreamProvider.family<List<BookModel>, String>((ref, category) {
+final booksByCategoryProvider =
+    StreamProvider.family<List<BookModel>, String>((ref, category) {
   final repository = ref.watch(bookRepositoryProvider);
   return repository.getBooksByCategory(category);
 });
 
 // Provider untuk pencarian buku
-final bookSearchProvider = StreamProvider.family<List<BookModel>, String>((ref, query) {
+final bookSearchProvider =
+    StreamProvider.family<List<BookModel>, String>((ref, query) {
   if (query.isEmpty) {
     return ref.watch(booksProvider.stream);
   }
@@ -24,7 +26,8 @@ final bookSearchProvider = StreamProvider.family<List<BookModel>, String>((ref, 
 });
 
 // Provider untuk buku berdasarkan ID
-final bookByIdProvider = FutureProvider.family<BookModel?, String>((ref, id) async {
+final bookByIdProvider =
+    FutureProvider.family<BookModel?, String>((ref, id) async {
   final repository = ref.watch(bookRepositoryProvider);
   return repository.getBookById(id);
 });
@@ -35,12 +38,62 @@ final bookCategoriesProvider = FutureProvider<List<String>>((ref) {
   return repository.getCategories();
 });
 
+final booksCountProvider = FutureProvider<int>((ref) async {
+  final repository = ref.watch(bookRepositoryProvider);
+  return repository.getBooksCount();
+});
+
+class BookController extends StateNotifier<AsyncValue<void>> {
+  final BookRepository _repository;
+
+  BookController(this._repository) : super(const AsyncValue.data(null));
+
+  // Add book for admin
+  Future<bool> addBook(BookModel book) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.addBook(book);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+
+  // Update book for admin
+  Future<bool> updateBook(BookModel book) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.updateBook(book);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+
+  // Delete book for admin
+  Future<bool> deleteBook(String bookId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.deleteBook(bookId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+}
+
 // Provider untuk aksi peminjaman & pengembalian buku
 class BorrowController extends StateNotifier<AsyncValue<void>> {
   final BookRepository _repository;
-  
+
   BorrowController(this._repository) : super(const AsyncValue.data(null));
-  
+
   Future<bool> borrowBook(String bookId) async {
     state = const AsyncValue.loading();
     try {
@@ -52,7 +105,7 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
-  
+
   Future<bool> returnBook(String bookId) async {
     state = const AsyncValue.loading();
     try {
@@ -66,7 +119,14 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
   }
 }
 
-final borrowControllerProvider = StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
+final bookControllerProvider =
+    StateNotifierProvider<BookController, AsyncValue<void>>((ref) {
+  final repository = ref.watch(bookRepositoryProvider);
+  return BookController(repository);
+});
+
+final borrowControllerProvider =
+    StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
   final repository = ref.watch(bookRepositoryProvider);
   return BorrowController(repository);
 });

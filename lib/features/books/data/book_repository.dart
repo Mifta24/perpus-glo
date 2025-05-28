@@ -167,7 +167,6 @@ class BookRepository {
     });
   }
 
- 
   Stream<List<BookModel>> getBooksByPopularity({required int limit}) {
     return _booksRef
         .orderBy('borrowCount', descending: true)
@@ -202,6 +201,30 @@ class BookRepository {
   Future<List<String>> getCategories() async {
     final snapshot = await _firestore.collection('categories').get();
     return snapshot.docs.map((doc) => doc['name'] as String).toList();
+  }
+
+  // getBooksCount
+  Future<int> getBooksCount() async {
+    final snapshot = await _booksRef.get();
+    return snapshot.docs.length;
+  }
+
+  // Add book for admin
+  Future<void> addBook(BookModel book) async {
+    await _booksRef.add(book.toJson());
+  }
+
+  // Update book for admin
+  Future<void> updateBook(BookModel book) async {
+    if (book.id == null) {
+      throw Exception('Book ID is required for update');
+    }
+    await _booksRef.doc(book.id).update(book.toJson());
+  }
+
+  // Delete book for admin
+  Future<void> deleteBook(String bookId) async {
+    await _booksRef.doc(bookId).delete();
   }
 }
 

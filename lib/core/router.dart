@@ -16,6 +16,13 @@ import '../features/payment/view/payment_page.dart';
 import '../features/profile/view/profile_page.dart';
 import '../features/profile/view/edit_profile_page.dart';
 import '../features/profile/view/settings_page.dart';
+// Import halaman admin
+import '../features/admin/view/admin_dashboard_page.dart';
+import '../features/admin/view/admin_login_page.dart';
+import '../features/admin/view/book_management_page.dart';
+import '../features/admin/view/add_edit_book_page.dart';
+import '../features/admin/view/borrow_management_page.dart';
+import '../features/admin/view/user_management_page.dart';
 
 // router.dart digunakan untuk mengatur routing aplikasi menggunakan GoRouter
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -110,22 +117,72 @@ final GoRouter router = GoRouter(
       path: '/settings',
       builder: (context, state) => const SettingsPage(),
     ),
+    
+    // Admin Routes - BARU
+    GoRoute(
+      path: '/admin/login',
+      builder: (context, state) => const AdminLoginPage(),
+    ),
+    GoRoute(
+      path: '/admin',
+      builder: (context, state) => const AdminDashboardPage(),
+    ),
+    GoRoute(
+      path: '/admin/books',
+      builder: (context, state) => const BookManagementPage(),
+    ),
+    GoRoute(
+      path: '/admin/books/add',
+      builder: (context, state) => const AddEditBookPage(),
+    ),
+    GoRoute(
+      path: '/admin/books/edit/:id',
+      builder: (context, state) {
+        final bookId = state.pathParameters['id'] ?? '';
+        return AddEditBookPage(bookId: bookId);
+      },
+    ),
+    GoRoute(
+      path: '/admin/borrows',
+      builder: (context, state) => const BorrowManagementPage(),
+    ),
+    GoRoute(
+      path: '/admin/users',
+      builder: (context, state) => const UserManagementPage(),
+    ),
   ],
   // Redirect to login if not authenticated
   redirect: (context, state) {
     final isLoggedIn = FirebaseAuth.instance.currentUser != null;
-
-    // List of paths that don't require authentication
-    final nonAuthRoutes = ['/login', '/register'];
-
-    // If not logged in and trying to access protected route, redirect to login
-    if (!isLoggedIn && !nonAuthRoutes.contains(state.matchedLocation)) {
-      return '/login';
+    final isAdminRoute = state.matchedLocation.startsWith('/admin');
+    
+    // Kecualikan admin/login dari redirect
+    final nonAuthRoutes = ['/login', '/register', '/admin/login'];
+    
+    // Admin route logic
+    if (isAdminRoute && state.matchedLocation != '/admin/login') {
+      // Untuk memeriksa apakah user adalah admin, kita perlu mengecek state usernya
+      // Di sini kita sederhanakan dengan mengecek apakah user login
+      if (!isLoggedIn) {
+        return '/admin/login';
+      }
+      
+      // Sebenarnya di sini kita perlu cek role user
+      // Namun karena keterbatasan akses state di router, 
+      // kita biarkan pengecekan role dilakukan di halaman admin
     }
 
-    // If logged in and trying to access login/register, redirect to home
-    if (isLoggedIn && nonAuthRoutes.contains(state.matchedLocation)) {
-      return '/home';
+    // User route logic (non-admin)
+    if (!isAdminRoute) {
+      // If not logged in and trying to access protected route, redirect to login
+      if (!isLoggedIn && !nonAuthRoutes.contains(state.matchedLocation)) {
+        return '/login';
+      }
+
+      // If logged in and trying to access login/register, redirect to home
+      if (isLoggedIn && (state.matchedLocation == '/login' || state.matchedLocation == '/register')) {
+        return '/home';
+      }
     }
 
     return null;

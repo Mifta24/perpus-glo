@@ -32,10 +32,22 @@ final filteredBorrowsProvider = Provider<List<BorrowModel>>((ref) {
   );
 });
 
-// Provider for active borrows
+// Provider for active borrows all users
 final activeBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
   final repository = ref.watch(borrowRepositoryProvider);
   return repository.getActiveBorrows();
+});
+
+// Provider untuk jumlah peminjaman aktif
+final activeLoansCountProvider = FutureProvider<int>((ref) async {
+  final repository = ref.watch(borrowRepositoryProvider);
+  return repository.getActiveLoansCount();
+});
+
+// Provider untuk menghitung jumlah peminjaman yang terlambat
+final overdueBorrowsCountProvider = FutureProvider<int>((ref) async {
+  final repository = ref.watch(borrowRepositoryProvider);
+  return repository.getOverdueBorrowsCount();
 });
 
 // Controller untuk aksi peminjaman

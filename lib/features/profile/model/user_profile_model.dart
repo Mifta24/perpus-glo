@@ -111,4 +111,8 @@ class UserProfileModel {
         return UserRole.user;
     }
   }
+
+  bool get isAdmin => role == UserRole.admin;
+  bool get isLibrarian => role == UserRole.librarian;
+  bool get isUser => role == UserRole.user;
 }

@@ -318,9 +318,29 @@ class BorrowRepository {
       return borrows;
     });
   }
+
+  // Get count of active loans for all users
+  /// Menghitung jumlah peminjaman aktif untuk semua pengguna
+  Future<int> getActiveLoansCount() async {
+    final snapshot =
+        await _borrowsRef.where('status', isEqualTo: 'active').get();
+
+    return snapshot.docs.length;
+  }
+
+  // Get count of overdue borrows
+  Future<int> getOverdueBorrowsCount() async {
+    final now = DateTime.now();
+    final snapshot = await _borrowsRef
+        .where('dueDate', isLessThan: Timestamp.fromDate(now))
+        .where('status', isEqualTo: 'active')
+        .get();
+
+    return snapshot.docs.length;
+  }
 }
 
-//  Digunakan untuk provider yang mengakses repository ini 
+//  Digunakan untuk provider yang mengakses repository ini
 final borrowRepositoryProvider = Provider<BorrowRepository>((ref) {
   return BorrowRepository();
 });
