@@ -1,22 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:perpusglo/features/borrow/providers/borrow_provider.dart' as borrow;
 import '../../../common/widgets/loading_indicator.dart';
 import '../model/book_model.dart';
 import '../providers/book_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 
-class BookDetailPage extends ConsumerWidget {
+// Ubah dari ConsumerWidget menjadi ConsumerStatefulWidget
+class BookDetailPage extends ConsumerStatefulWidget {
   final String bookId;
-  
+
   const BookDetailPage({super.key, required this.bookId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bookAsync = ref.watch(bookByIdProvider(bookId));
-    final borrowState = ref.watch(borrowControllerProvider);
+  ConsumerState<BookDetailPage> createState() => _BookDetailPageState();
+}
+
+// Tambahkan class State
+class _BookDetailPageState extends ConsumerState<BookDetailPage> {
+  @override
+  Widget build(BuildContext context) {
+    final bookAsync = ref.watch(bookByIdProvider(widget.bookId));
+    final borrowState = ref.watch(borrow.borrowControllerProvider);
     final userAsync = ref.watch(currentUserProvider);
-    
+
+    final isBookPendingAsync = ref.watch(borrow.isBookPendingProvider(widget.bookId));
+    final isBookBorrowedAsync =
+        ref.watch(borrow.isBookBorrowedProvider(widget.bookId));
+
+// Debugging pendingBooks
+    userAsync.whenData((user) {
+      if (user != null) {
+        print("Current user pendingBooks: ${user.pendingBooks}");
+        print("Current user borrowedBooks: ${user.borrowedBooks}");
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detail Buku'),
@@ -28,48 +48,112 @@ class BookDetailPage extends ConsumerWidget {
               child: Text('Buku tidak ditemukan'),
             );
           }
-          
-          return _buildBookDetail(context, ref, book);
+
+          return _buildBookDetail(context, book);
         },
         loading: () => const Center(child: LoadingIndicator()),
         error: (error, stack) => Center(
           child: Text('Error: ${error.toString()}'),
         ),
       ),
+      // Tombol untuk meminjam atau mengembalikan buku
       bottomNavigationBar: bookAsync.when(
         data: (book) {
           if (book == null) return const SizedBox.shrink();
-          
+
           return userAsync.when(
             data: (user) {
-              final bool isBookBorrowed = user?.borrowedBooks.contains(bookId) ?? false;
-              
+              // Tambahkan pengecekan untuk pendingBooks
+              final bool isBookBorrowed =
+                  user?.borrowedBooks.contains(widget.bookId) ?? false;
+              final bool isBookPending =
+                  user?.pendingBooks.contains(widget.bookId) ?? false;
+
               return Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: ElevatedButton(
-                  onPressed: borrowState.isLoading || !book.isAvailable && !isBookBorrowed
+                  onPressed: borrowState.isLoading ||
+                          (!book.isAvailable &&
+                              !isBookBorrowed &&
+                              !isBookPending) ||
+                          isBookPending // Disable button jika sudah pending
                       ? null
                       : () async {
                           if (isBookBorrowed) {
-                            await ref.read(borrowControllerProvider.notifier).returnBook(bookId);
+                            // Konfirmasi pengembalian buku
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Kembalikan Buku'),
+                                content: const Text(
+                                    'Apakah Anda yakin ingin mengembalikan buku ini?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('BATAL'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('KEMBALIKAN'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              await ref
+                                  .read(borrow.borrowControllerProvider.notifier)
+                                  .returnBook(widget.bookId);
+                            }
                           } else {
-                            await ref.read(borrowControllerProvider.notifier).borrowBook(bookId);
+                            await ref
+                                .read(borrow.borrowControllerProvider.notifier)
+                                .borrowBook(widget.bookId);
+
+                            // Show success dialog for pending request
+                            if (mounted && !borrowState.hasError) {
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Permintaan Berhasil'),
+                                  content: const Text(
+                                    'Permintaan peminjaman buku berhasil dikirim. '
+                                    'Silakan tunggu konfirmasi dari pustakawan.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isBookBorrowed ? Colors.orange : Colors.blue,
+                    backgroundColor: isBookPending
+                        ? Colors.amber
+                        : (isBookBorrowed ? Colors.orange : Colors.blue),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   child: borrowState.isLoading
                       ? const LoadingIndicator(color: Colors.white)
                       : Text(
-                          isBookBorrowed ? 'KEMBALIKAN BUKU' : 'PINJAM BUKU',
+                          isBookPending
+                              ? 'MENUNGGU KONFIRMASI'
+                              : (isBookBorrowed
+                                  ? 'KEMBALIKAN BUKU'
+                                  : 'PINJAM BUKU'),
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                 ),
               );
             },
-            loading: () => const SizedBox(height: 80, child: Center(child: LoadingIndicator())),
+            loading: () => const SizedBox(
+                height: 80, child: Center(child: LoadingIndicator())),
             error: (_, __) => const SizedBox.shrink(),
           );
         },
@@ -78,11 +162,11 @@ class BookDetailPage extends ConsumerWidget {
       ),
     );
   }
-  
-  Widget _buildBookDetail(BuildContext context, WidgetRef ref, BookModel book) {
+
+  Widget _buildBookDetail(BuildContext context, BookModel book) {
     final dateFormat = DateFormat('dd MMMM yyyy');
-    final borrowState = ref.watch(borrowControllerProvider);
-    
+    final borrowState = ref.watch(borrow.borrowControllerProvider);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -114,9 +198,9 @@ class BookDetailPage extends ConsumerWidget {
                   },
                 ),
               ),
-              
+
               const SizedBox(width: 16),
-              
+
               // Book info
               Expanded(
                 child: Column(
@@ -159,9 +243,9 @@ class BookDetailPage extends ConsumerWidget {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Description section
           const Text(
             'Deskripsi',
@@ -178,9 +262,9 @@ class BookDetailPage extends ConsumerWidget {
               height: 1.5,
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Error message if any
           if (borrowState.hasError)
             Container(
@@ -207,8 +291,9 @@ class BookDetailPage extends ConsumerWidget {
       ),
     );
   }
-  
-  Widget _buildInfoRow(IconData icon, String label, String value, {Color? iconColor}) {
+
+  Widget _buildInfoRow(IconData icon, String label, String value,
+      {Color? iconColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(

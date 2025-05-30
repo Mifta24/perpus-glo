@@ -1,41 +1,113 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 enum NotificationType {
-  reminder,    // Pengingat pengembalian buku
-  overdue,     // Buku terlambat
-  fine,        // Denda
-  info,        // Informasi umum
-  bookReady,   // Buku yang direservasi sudah tersedia
+  general,
+  info,            // Tambahkan info
+  reminder,        // Tambahkan reminder (walaupun sudah ada returnReminder)
+  borrowRequest,   // User meminta peminjaman
+  borrowConfirmed, // Peminjaman disetujui
+  borrowRejected,  // Peminjaman ditolak
+  borrowRequestAdmin, // Notifikasi ke admin ada permintaan baru
+  returnReminder,  // Pengingat pengembalian
+  bookReturned,    // Buku dikembalikan
+  overdue,         // Buku terlambat
+  fine,            // Denda
+  payment,         // Pembayaran
+  announcement,    // Pengumuman
 }
 
 extension NotificationTypeExtension on NotificationType {
-  String get title {
+  String get displayName {
     switch (this) {
-      case NotificationType.reminder:
-        return 'Pengingat Pengembalian';
-      case NotificationType.overdue:
-        return 'Buku Terlambat';
-      case NotificationType.fine:
-        return 'Informasi Denda';
-      case NotificationType.info:
+      case NotificationType.general:
+        return 'Umum';
+      case NotificationType.info:           // Tambahkan ini
         return 'Informasi';
-      case NotificationType.bookReady:
-        return 'Buku Tersedia';
+      case NotificationType.reminder:       // Tambahkan ini
+        return 'Pengingat';
+      case NotificationType.borrowRequest:
+        return 'Permintaan Peminjaman';
+      case NotificationType.borrowConfirmed:
+        return 'Peminjaman Disetujui';
+      case NotificationType.borrowRejected:
+        return 'Peminjaman Ditolak';
+      case NotificationType.borrowRequestAdmin:
+        return 'Permintaan Peminjaman Baru';
+      case NotificationType.returnReminder:
+        return 'Pengingat Pengembalian';
+      case NotificationType.bookReturned:
+        return 'Buku Dikembalikan';
+      case NotificationType.overdue:
+        return 'Terlambat';
+      case NotificationType.fine:
+        return 'Denda';
+      case NotificationType.payment:
+        return 'Pembayaran';
+      case NotificationType.announcement:
+        return 'Pengumuman';
     }
   }
   
-  String get icon {
+  IconData get icon {
     switch (this) {
-      case NotificationType.reminder:
-        return 'ic_reminder';
+      case NotificationType.general:
+        return Icons.notifications;
+      case NotificationType.info:           // Tambahkan ini
+        return Icons.info;
+      case NotificationType.reminder:       // Tambahkan ini
+        return Icons.access_time;
+      case NotificationType.borrowRequest:
+        return Icons.book;
+      case NotificationType.borrowConfirmed:
+        return Icons.check_circle;
+      case NotificationType.borrowRejected:
+        return Icons.cancel;
+      case NotificationType.borrowRequestAdmin:
+        return Icons.pending_actions;
+      case NotificationType.returnReminder:
+        return Icons.alarm;
+      case NotificationType.bookReturned:
+        return Icons.assignment_turned_in;
       case NotificationType.overdue:
-        return 'ic_overdue';
+        return Icons.warning;
       case NotificationType.fine:
-        return 'ic_fine';
-      case NotificationType.info:
-        return 'ic_info';
-      case NotificationType.bookReady:
-        return 'ic_book';
+        return Icons.attach_money;
+      case NotificationType.payment:
+        return Icons.payment;
+      case NotificationType.announcement:
+        return Icons.campaign;
+    }
+  }
+  
+  Color get color {
+    switch (this) {
+      case NotificationType.general:
+        return Colors.blue;
+      case NotificationType.info:           // Tambahkan ini
+        return Colors.lightBlue;
+      case NotificationType.reminder:       // Tambahkan ini
+        return Colors.amber;
+      case NotificationType.borrowRequest:
+        return Colors.amber;
+      case NotificationType.borrowConfirmed:
+        return Colors.green;
+      case NotificationType.borrowRejected:
+        return Colors.red;
+      case NotificationType.borrowRequestAdmin:
+        return Colors.purple;
+      case NotificationType.returnReminder:
+        return Colors.orange;
+      case NotificationType.bookReturned:
+        return Colors.teal;
+      case NotificationType.overdue:
+        return Colors.deepOrange;
+      case NotificationType.fine:
+        return Colors.redAccent;
+      case NotificationType.payment:
+        return Colors.green;
+      case NotificationType.announcement:
+        return Colors.indigo;
     }
   }
 }
@@ -49,7 +121,7 @@ class NotificationModel {
   final DateTime createdAt;
   final bool isRead;
   final Map<String, dynamic>? data;
-  
+
   NotificationModel({
     required this.id,
     required this.userId,
@@ -60,23 +132,32 @@ class NotificationModel {
     this.isRead = false,
     this.data,
   });
-  
-  factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    return NotificationModel(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      title: json['title'] as String,
-      body: json['body'] as String,
-      type: NotificationType.values.firstWhere(
-        (e) => e.toString() == 'NotificationType.${json['type']}',
-        orElse: () => NotificationType.info,
-      ),
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
-      isRead: json['isRead'] as bool? ?? false,
-      data: json['data'] as Map<String, dynamic>?,
+
+ factory NotificationModel.fromJson(Map<String, dynamic> json) {
+  return NotificationModel(
+    id: json['id'] as String,
+    userId: json['userId'] as String,
+    title: json['title'] as String,
+    body: json['body'] as String,
+    type: _typeFromString(json['type'] as String? ?? 'general'),
+    createdAt: json['createdAt'] is Timestamp 
+        ? (json['createdAt'] as Timestamp).toDate() 
+        : DateTime.now(),
+    isRead: json['isRead'] as bool? ?? false,
+    data: json['data'] as Map<String, dynamic>?,
+  );
+}
+
+static NotificationType _typeFromString(String type) {
+  try {
+    return NotificationType.values.firstWhere(
+      (e) => e.toString().split('.').last == type,
     );
+  } catch (_) {
+    return NotificationType.general;
   }
-  
+}
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -89,7 +170,7 @@ class NotificationModel {
       'data': data,
     };
   }
-  
+
   NotificationModel copyWith({
     String? id,
     String? userId,

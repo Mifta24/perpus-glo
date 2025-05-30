@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/firebase_service.dart';
 import '../model/borrow_model.dart';
-import '../../books/model/book_model.dart';
 
 class BorrowRepository {
   final FirebaseFirestore _firestore = FirebaseService.firestore;
@@ -26,7 +25,7 @@ class BorrowRepository {
 
     return _borrowsRef
         .where('userId', isEqualTo: userId)
-        .orderBy('borrowDate', descending: true)
+        .orderBy('requestDate', descending: true)
         .snapshots()
         .asyncMap((snapshot) async {
       final List<BorrowModel> borrows = [];
@@ -68,7 +67,8 @@ class BorrowRepository {
         .where('status', isEqualTo: BorrowStatus.active)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => BorrowModel.fromJson(doc.data() as Map<String, dynamic>))
+            .map((doc) =>
+                BorrowModel.fromJson(doc.data() as Map<String, dynamic>))
             .toList());
   }
 
@@ -109,67 +109,77 @@ class BorrowRepository {
       throw Exception('User tidak ditemukan');
     }
 
-    // Use transaction to ensure data consistency
-    String borrowId = '';
-    await _firestore.runTransaction((transaction) async {
-      // 1. Get book document
-      final bookDoc = await transaction.get(_booksRef.doc(bookId));
-      if (!bookDoc.exists) {
-        throw Exception('Buku tidak ditemukan');
-      }
+    // Generate borrowId di luar transaction
+    String borrowId = _borrowsRef.doc().id;
 
-      final bookData = bookDoc.data() as Map<String, dynamic>;
-      final availableStock = bookData['availableStock'] as int;
+    try {
+      // Use transaction to ensure data consistency
+      await _firestore.runTransaction((transaction) async {
+        // 1. Get book document
+        final bookDoc = await transaction.get(_booksRef.doc(bookId));
+        if (!bookDoc.exists) {
+          throw Exception('Buku tidak ditemukan');
+        }
 
-      // 2. Check stock
-      if (availableStock <= 0) {
-        throw Exception('Stok buku tidak tersedia');
-      }
+        final bookData = bookDoc.data() as Map<String, dynamic>;
+        final availableStock = bookData['availableStock'] as int;
 
-      // 3. Get user document
-      final userDoc = await transaction.get(_usersRef.doc(userId));
-      if (!userDoc.exists) {
-        throw Exception('User tidak ditemukan');
-      }
+        // 2. Check stock (tetap cek walaupun belum mengurangi stok)
+        if (availableStock <= 0) {
+          throw Exception('Stok buku tidak tersedia');
+        }
 
-      // 4. Get current pending and borrowed books
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final pendingBooks = List<String>.from(userData['pendingBooks'] ?? []);
-      final borrowedBooks = List<String>.from(userData['borrowedBooks'] ?? []);
+        // 3. Get user document
+        final userDoc = await transaction.get(_usersRef.doc(userId));
+        if (!userDoc.exists) {
+          throw Exception('User tidak ditemukan');
+        }
 
-      // 5. Check if user already requested or borrowed this book
-      if (pendingBooks.contains(bookId)) {
-        throw Exception('Permintaan peminjaman untuk buku ini sudah diajukan');
-      }
-      if (borrowedBooks.contains(bookId)) {
-        throw Exception('Buku sudah dipinjam');
-      }
+        // 4. Get current pending and borrowed books
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final pendingBooks = List<String>.from(userData['pendingBooks'] ?? []);
+        final borrowedBooks =
+            List<String>.from(userData['borrowedBooks'] ?? []);
 
-      // 6. Create borrow record
-      borrowId = _borrowsRef.doc().id;
-      final borrowDate = DateTime.now();
-      final dueDate =
-          borrowDate.add(const Duration(days: 14)); // 2 weeks borrowing period
+        // 5. Check if user already requested or borrowed this book
+        if (pendingBooks.contains(bookId)) {
+          throw Exception(
+              'Permintaan peminjaman untuk buku ini sudah diajukan');
+        }
+        if (borrowedBooks.contains(bookId)) {
+          throw Exception('Buku sudah dipinjam');
+        }
 
-      final borrowData = {
-        'userId': userId,
-        'bookId': bookId,
-        'borrowDate': borrowDate,
-        'dueDate': dueDate,
-        'status': 'pending', // Status pending, menunggu konfirmasi pustakawan
-        'isPaid': true, // No fine at first
-        'requestDate': borrowDate, // Tambahkan tanggal pengajuan
-      };
+        // 6. Create borrow record with consistent timestamps
+        final now = DateTime.now();
+        final dueDate =
+            now.add(const Duration(days: 14)); // 2 weeks borrowing period
 
-      // 7. Add book to user's pendingBooks
-      pendingBooks.add(bookId);
-      transaction.update(_usersRef.doc(userId), {'pendingBooks': pendingBooks});
+        final borrowData = {
+          'userId': userId,
+          'bookId': bookId,
+          'borrowDate': now,
+          'dueDate': dueDate,
+          'status': 'pending', // Status pending, menunggu konfirmasi
+          'isPaid': true, // No fine at first
+          'requestDate': now, // Tambahkan tanggal pengajuan
+        };
 
-      // 8. Create borrow document
-      transaction.set(_borrowsRef.doc(borrowId), borrowData);
-    });
+        // 7. Add book to user's pendingBooks
+        pendingBooks.add(bookId);
+        transaction
+            .update(_usersRef.doc(userId), {'pendingBooks': pendingBooks});
 
-    return borrowId;
+        // 8. Create borrow document
+        transaction.set(_borrowsRef.doc(borrowId), borrowData);
+      });
+
+      print("Berhasil membuat record peminjaman dengan ID: $borrowId");
+      return borrowId;
+    } catch (e) {
+      print("Error saat meminjam buku: $e");
+      throw Exception('Gagal meminjam buku: ${e.toString()}');
+    }
   }
 
   // Confirm borrow by librarian/admin
@@ -431,6 +441,47 @@ class BorrowRepository {
 
       return borrows;
     });
+  }
+
+  Future<void> payFine(String borrowId, String paymentMethod) async {
+    try {
+      // Get the borrow document
+      final borrowDoc = await _borrowsRef.doc(borrowId).get();
+      if (!borrowDoc.exists) {
+        throw Exception('Peminjaman tidak ditemukan');
+      }
+
+      // Cast data ke Map<String, dynamic> terlebih dahulu
+      final borrowData = borrowDoc.data() as Map<String, dynamic>;
+
+      // Update the document
+      await _borrowsRef.doc(borrowId).update({
+        'isPaid': true,
+        'paymentMethod': paymentMethod,
+        'paymentDate': DateTime.now(),
+      });
+
+      // Update user's fineAmount if needed
+      final userId = borrowData['userId'] as String?;
+      if (userId != null) {
+        final userDoc = await _usersRef.doc(userId).get();
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final currentFine = (userData['fineAmount'] ?? 0.0) as double;
+          final borrowFine = (borrowData['fine'] ?? 0.0) as double;
+
+          // Reduce user's total fine
+          if (currentFine > 0 && borrowFine > 0) {
+            double newFine = currentFine - borrowFine;
+            if (newFine < 0) newFine = 0;
+            await _usersRef.doc(userId).update({'fineAmount': newFine});
+          }
+        }
+      }
+    } catch (e) {
+      print("Error paying fine: $e");
+      throw Exception('Gagal memproses pembayaran: ${e.toString()}');
+    }
   }
 
   // Get count of active loans for all users

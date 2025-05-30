@@ -13,7 +13,7 @@ class NotificationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notificationsAsync = ref.watch(userNotificationsProvider);
     final controller = ref.watch(notificationControllerProvider);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifikasi'),
@@ -23,7 +23,9 @@ class NotificationPage extends ConsumerWidget {
             onPressed: controller.isLoading
                 ? null
                 : () {
-                    ref.read(notificationControllerProvider.notifier).markAllAsRead();
+                    ref
+                        .read(notificationControllerProvider.notifier)
+                        .markAllAsRead();
                   },
             tooltip: 'Tandai semua sudah dibaca',
           ),
@@ -36,7 +38,7 @@ class NotificationPage extends ConsumerWidget {
               child: Text('Belum ada notifikasi'),
             );
           }
-          
+
           return ListView.builder(
             padding: const EdgeInsets.all(8),
             itemCount: notifications.length,
@@ -53,10 +55,11 @@ class NotificationPage extends ConsumerWidget {
       ),
     );
   }
-  
-  Widget _buildNotificationItem(BuildContext context, WidgetRef ref, NotificationModel notification) {
+
+  Widget _buildNotificationItem(
+      BuildContext context, WidgetRef ref, NotificationModel notification) {
     final dateFormat = DateFormat('dd MMM yyyy, HH:mm');
-    
+
     return Dismissible(
       key: Key(notification.id),
       background: Container(
@@ -70,7 +73,8 @@ class NotificationPage extends ConsumerWidget {
       ),
       direction: DismissDirection.endToStart,
       onDismissed: (direction) {
-        ref.read(notificationControllerProvider.notifier)
+        ref
+            .read(notificationControllerProvider.notifier)
             .deleteNotification(notification.id);
       },
       child: Card(
@@ -80,10 +84,11 @@ class NotificationPage extends ConsumerWidget {
           onTap: () {
             // Mark as read
             if (!notification.isRead) {
-              ref.read(notificationControllerProvider.notifier)
+              ref
+                  .read(notificationControllerProvider.notifier)
                   .markAsRead(notification.id);
             }
-            
+
             // Navigate based on notification type and data
             _handleNotificationTap(context, notification);
           },
@@ -115,12 +120,12 @@ class NotificationPage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 // Notification body
                 Text(notification.body),
-                
+
                 // Unread indicator
                 if (!notification.isRead)
                   Align(
@@ -142,11 +147,11 @@ class NotificationPage extends ConsumerWidget {
       ),
     );
   }
-  
+
   Widget _buildTypeIcon(NotificationType type) {
     IconData icon;
     Color color;
-    
+
     switch (type) {
       case NotificationType.reminder:
         icon = Icons.alarm;
@@ -164,12 +169,44 @@ class NotificationPage extends ConsumerWidget {
         icon = Icons.info;
         color = Colors.blue;
         break;
-      case NotificationType.bookReady:
+      case NotificationType.borrowRequest:
         icon = Icons.book;
+        color = Colors.amber;
+        break;
+      case NotificationType.general:
+        icon = Icons.notifications;
+        color = Colors.grey;
+        break;
+      case NotificationType.borrowConfirmed:
+        icon = Icons.check_circle;
         color = Colors.green;
         break;
+      case NotificationType.borrowRejected:
+        icon = Icons.cancel;
+        color = Colors.red;
+        break;
+      case NotificationType.borrowRequestAdmin:
+        icon = Icons.pending_actions;
+        color = Colors.purple;
+        break;
+      case NotificationType.returnReminder:
+        icon = Icons.alarm;
+        color = Colors.orange;
+        break;
+      case NotificationType.bookReturned:
+        icon = Icons.assignment_turned_in;
+        color = Colors.teal;
+        break;
+      case NotificationType.payment:
+        icon = Icons.payment;
+        color = Colors.green;
+        break;
+      case NotificationType.announcement:
+        icon = Icons.campaign;
+        color = Colors.indigo;
+        break;
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -183,33 +220,72 @@ class NotificationPage extends ConsumerWidget {
       ),
     );
   }
-  
-  void _handleNotificationTap(BuildContext context, NotificationModel notification) {
+
+  void _handleNotificationTap(
+      BuildContext context, NotificationModel notification) {
     if (notification.data == null) return;
-    
+
     switch (notification.type) {
       case NotificationType.reminder:
       case NotificationType.overdue:
+      case NotificationType.returnReminder:
         final borrowId = notification.data?['borrowId'] as String?;
         if (borrowId != null) {
           context.push('/borrow/$borrowId');
         }
         break;
+
       case NotificationType.fine:
         final borrowId = notification.data?['borrowId'] as String?;
-        final amount = (notification.data?['amount'] as num?)?.toDouble() ?? 0.0;
+        final amount =
+            (notification.data?['amount'] as num?)?.toDouble() ?? 0.0;
         if (borrowId != null) {
           context.push('/payment/$borrowId?amount=$amount');
         }
         break;
-      case NotificationType.bookReady:
+
+      case NotificationType.borrowRequest:
+      case NotificationType.borrowConfirmed:
+      case NotificationType.borrowRejected:
         final bookId = notification.data?['bookId'] as String?;
         if (bookId != null) {
           context.push('/books/$bookId');
         }
         break;
+
+      case NotificationType.borrowRequestAdmin:
+        final borrowId = notification.data?['borrowId'] as String?;
+        if (borrowId != null) {
+          context.push('/admin/borrows/$borrowId');
+        }
+        break;
+
+      case NotificationType.bookReturned:
+        final borrowId = notification.data?['borrowId'] as String?;
+        if (borrowId != null) {
+          context.push('/borrow/$borrowId');
+        }
+        break;
+
+      case NotificationType.payment:
+        final paymentId = notification.data?['paymentId'] as String?;
+        if (paymentId != null) {
+          context.push('/payment/history/$paymentId');
+        }
+        break;
+
+      case NotificationType.announcement:
+        final announcementId = notification.data?['announcementId'] as String?;
+        if (announcementId != null) {
+          context.push('/announcements/$announcementId');
+        } else {
+          context.push('/announcements');
+        }
+        break;
+
       case NotificationType.info:
-        // Just show the notification, no navigation
+      case NotificationType.general:
+        // Hanya tampilkan notifikasi, tanpa navigasi
         break;
     }
   }

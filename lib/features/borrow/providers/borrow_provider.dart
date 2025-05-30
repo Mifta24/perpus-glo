@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perpusglo/features/auth/providers/auth_provider.dart';
 import '../data/borrow_repository.dart';
 import '../model/borrow_model.dart';
 
@@ -31,6 +32,22 @@ final filteredBorrowsProvider = Provider<List<BorrowModel>>((ref) {
     loading: () => [],
     error: (_, __) => [],
   );
+});
+
+// Provider untuk mengecek apakah buku dalam status pending
+final isBookPendingProvider = FutureProvider.family<bool, String>((ref, bookId) async {
+  final currentUser = await ref.watch(currentUserProvider.future);
+  if (currentUser == null) return false;
+  
+  return currentUser.pendingBooks.contains(bookId);
+});
+
+// Provider untuk mengecek apakah buku dalam status borrowed
+final isBookBorrowedProvider = FutureProvider.family<bool, String>((ref, bookId) async {
+  final currentUser = await ref.watch(currentUserProvider.future);
+  if (currentUser == null) return false;
+  
+  return currentUser.borrowedBooks.contains(bookId);
 });
 
 // Provider for active borrows all users
@@ -66,21 +83,34 @@ final pendingBorrowsCountProvider = StreamProvider<int>((ref) {
 // Controller untuk aksi peminjaman
 class BorrowController extends StateNotifier<AsyncValue<void>> {
   final BorrowRepository _repository;
+  final Ref ref;
 
-    BorrowController(this._repository) : super(const AsyncValue.data(null));
-  
+  BorrowController(this._repository, this.ref)
+      : super(const AsyncValue.data(null));
+
   Future<bool> borrowBook(String bookId) async {
     state = const AsyncValue.loading();
     try {
+      print("Memulai proses peminjaman buku: $bookId");
+
+      // Borrow the book - this should only create record with pending status
       final borrowId = await _repository.borrowBook(bookId);
+
+      print("Peminjaman berhasil dengan ID: $borrowId");
+
+      // Refresh related providers
+      ref.invalidate(userBorrowHistoryProvider);
+      ref.invalidate(currentUserProvider);
+
       state = const AsyncValue.data(null);
       return true;
     } catch (e, stack) {
+      print("Error ketika meminjam buku: $e");
       state = AsyncValue.error(e, stack);
       return false;
     }
   }
-  
+
   // Add confirm and reject methods
   Future<bool> confirmBorrow(String borrowId) async {
     state = const AsyncValue.loading();
@@ -93,7 +123,7 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
-  
+
   Future<bool> rejectBorrow(String borrowId, String reason) async {
     state = const AsyncValue.loading();
     try {
@@ -105,7 +135,7 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
-  
+
   // Add returnBook method
   Future<bool> returnBook(String borrowId) async {
     state = const AsyncValue.loading();
@@ -118,10 +148,26 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
+
+  // Tambahkan method untuk pembayaran denda
+  Future<bool> payFine(String borrowId, String paymentMethod) async {
+    state = const AsyncValue.loading();
+    try {
+      // Implement payment logic
+      await _repository.payFine(borrowId, paymentMethod);
+      // Refresh data
+      ref.invalidate(userBorrowHistoryProvider);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
 }
 
 final borrowControllerProvider =
     StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
   final repository = ref.watch(borrowRepositoryProvider);
-  return BorrowController(repository);
+  return BorrowController(repository, ref);
 });

@@ -200,57 +200,57 @@ class NotificationService {
     await _notificationsRef.doc(notificationId).delete();
   }
 
-  // Schedule reminder notification for book due date
-  Future<void> scheduleReturnReminder({
-    required String borrowId,
-    required String bookTitle,
-    required DateTime dueDate,
-  }) async {
-    try {
-      // Schedule reminder 1 day before due date
-      final reminderDate = dueDate.subtract(const Duration(days: 1));
+ // Schedule reminder notification for book due date
+Future<void> scheduleReturnReminder({
+  required String borrowId,
+  required String bookTitle,
+  required DateTime dueDate,
+}) async {
+  try {
+    // Schedule reminder 1 day before due date
+    final reminderDate = dueDate.subtract(const Duration(days: 1));
 
-      // Check if reminder date is in the future
-      if (reminderDate.isAfter(DateTime.now())) {
-        await AwesomeNotifications().createNotification(
-          content: NotificationContent(
-            id: borrowId.hashCode,
-            channelKey: 'reminder_channel',
-            title: 'Pengingat Pengembalian Buku',
-            body: 'Buku "$bookTitle" harus dikembalikan besok',
-            notificationLayout: NotificationLayout.Default,
-            category: NotificationCategory.Reminder,
-            payload: {
-              'borrowId': borrowId,
-            },
-          ),
-          schedule: NotificationCalendar(
-            year: reminderDate.year,
-            month: reminderDate.month,
-            day: reminderDate.day,
-            hour: reminderDate.hour,
-            minute: reminderDate.minute,
-            second: 0,
-            millisecond: 0,
-            allowWhileIdle: true,
-          ),
-        );
-
-        // Also create a Firestore notification that will be displayed in the app
-        await createNotification(
+    // Check if reminder date is in the future
+    if (reminderDate.isAfter(DateTime.now())) {
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: borrowId.hashCode,
+          channelKey: 'reminder_channel',
           title: 'Pengingat Pengembalian Buku',
           body: 'Buku "$bookTitle" harus dikembalikan besok',
-          type: models.NotificationType.reminder,
-          data: {
+          notificationLayout: NotificationLayout.Default,
+          category: NotificationCategory.Reminder,
+          payload: {
             'borrowId': borrowId,
-            'scheduledFor': reminderDate.toIso8601String(),
           },
-        );
-      }
-    } catch (e) {
-      debugPrint('Error scheduling reminder: $e');
+        ),
+        schedule: NotificationCalendar(
+          year: reminderDate.year,
+          month: reminderDate.month,
+          day: reminderDate.day,
+          hour: reminderDate.hour,
+          minute: reminderDate.minute,
+          second: 0,
+          millisecond: 0,
+          allowWhileIdle: true,
+        ),
+      );
+
+      // Also create a Firestore notification that will be displayed in the app
+      await createNotification(
+        title: 'Pengingat Pengembalian Buku',
+        body: 'Buku "$bookTitle" harus dikembalikan besok',
+        type: models.NotificationType.returnReminder, // Ubah dari reminder ke returnReminder
+        data: {
+          'borrowId': borrowId,
+          'scheduledFor': reminderDate.toIso8601String(),
+        },
+      );
     }
+  } catch (e) {
+    debugPrint('Error scheduling reminder: $e');
   }
+}
 
   // Cancel scheduled notification
   Future<void> cancelScheduledNotification(int notificationId) async {
@@ -275,5 +275,89 @@ class NotificationService {
         'testData': 'Ini adalah data pengujian',
       },
     );
+  }
+
+  // Buat notifikasi untuk user tertentu
+  Future<void> createNotificationForUser({
+    required String userId,
+    required String title,
+    required String body,
+    required models.NotificationType type,
+    Map<String, dynamic>? data,
+  }) async {
+    final notificationId = _notificationsRef.doc().id;
+
+    final notification = models.NotificationModel(
+      id: notificationId,
+      userId: userId,
+      title: title,
+      body: body,
+      type: type,
+      createdAt: DateTime.now(),
+      isRead: false,
+      data: data ?? {},
+    );
+
+    await _notificationsRef.doc(notificationId).set(notification.toJson());
+
+    // Jika user adalah user yang sedang login, tampilkan notifikasi lokal
+    if (userId == currentUserId) {
+      await showNotification(
+        id: notificationId.hashCode,
+        title: title,
+        body: body,
+        type: type,
+        payload: data?.map((key, value) => MapEntry(key, value.toString())),
+      );
+    }
+  }
+
+// Buat notifikasi untuk semua admin/pustakawan
+  // Buat notifikasi untuk semua admin/pustakawan
+  Future<void> createNotificationForAdmins({
+    required String title,
+    required String body,
+    required models.NotificationType type,
+    Map<String, dynamic>? data,
+  }) async {
+    // Ambil semua user dengan role admin atau pustakawan
+    final adminsQuery = await _firestore
+        .collection('users')
+        .where('role', whereIn: ['admin', 'librarian']).get();
+
+    // Buat batch untuk menyimpan banyak notifikasi sekaligus
+    final batch = _firestore.batch();
+
+    for (final admin in adminsQuery.docs) {
+      final adminId = admin.id;
+      final notificationId = _notificationsRef.doc().id;
+
+      final notification = models.NotificationModel(
+        id: notificationId,
+        userId: adminId,
+        title: title,
+        body: body,
+        type: type,
+        createdAt: DateTime.now(),
+        isRead: false,
+        data: data ?? {},
+      );
+
+      batch.set(_notificationsRef.doc(notificationId), notification.toJson());
+
+      // Jika admin adalah user yang sedang login, tampilkan notifikasi lokal
+      if (adminId == currentUserId) {
+        await showNotification(
+          id: notificationId.hashCode,
+          title: title,
+          body: body,
+          type: type,
+          payload: data?.map((key, value) => MapEntry(key, value.toString())),
+        );
+      }
+    }
+
+    // Commit batch
+    await batch.commit();
   }
 }

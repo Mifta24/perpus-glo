@@ -29,7 +29,6 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
       body: Column(
         children: [
           _buildFilterChips(),
-          
           Expanded(
             child: borrowsAsync.when(
               data: (borrows) {
@@ -38,12 +37,12 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                     child: Text('Belum ada riwayat peminjaman'),
                   );
                 }
-                
+
                 // Filter borrows if filter is selected
                 final filteredBorrows = selectedFilter != null
                     ? borrows.where((b) => b.status == selectedFilter).toList()
                     : borrows;
-                
+
                 if (filteredBorrows.isEmpty) {
                   return Center(
                     child: Text(
@@ -51,7 +50,7 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                     ),
                   );
                 }
-                
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: filteredBorrows.length,
@@ -70,7 +69,7 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
       ),
     );
   }
-  
+
   Widget _buildFilterChips() {
     return SizedBox(
       height: 60,
@@ -91,7 +90,7 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
               },
             ),
           ),
-          
+
           // Status filters
           ...BorrowStatus.values.map((status) {
             return Padding(
@@ -107,7 +106,8 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                 backgroundColor: status.color.withOpacity(0.1),
                 selectedColor: status.color,
                 onSelected: (selected) {
-                  ref.read(borrowFilterProvider.notifier).state = selected ? status : null;
+                  ref.read(borrowFilterProvider.notifier).state =
+                      selected ? status : null;
                 },
               ),
             );
@@ -116,11 +116,17 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
       ),
     );
   }
-  
+
   Widget _buildBorrowItem(BorrowModel borrow) {
     final bool isOverdue = borrow.status == BorrowStatus.overdue;
+    final bool isPending = borrow.status == BorrowStatus.pending;
     final bool hasReturned = borrow.returnDate != null;
-    
+    final bool needsPayment =
+        borrow.fine != null && borrow.fine! > 0 && !borrow.isPaid;
+
+    // Cek jika terlambat (borrow date + 7 hari < now)
+    final bool isLate = DateTime.now().difference(borrow.borrowDate).inDays > 7;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       clipBehavior: Clip.antiAlias,
@@ -148,177 +154,210 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                 ),
               ),
             ),
-            
-            // Content
+
+            // Action buttons
             Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Book cover
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: borrow.bookCover != null
-                        ? Image.network(
-                            borrow.bookCover!,
-                            width: 60,
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 60,
-                                height: 80,
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.book),
-                              );
-                            },
-                          )
-                        : Container(
-                            width: 60,
-                            height: 80,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.book),
-                          ),
-                  ),
-                  
-                  const SizedBox(width: 16),
-                  
-                  // Book details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          borrow.bookTitle ?? 'Judul tidak tersedia',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        
-                        // Borrow date
-                        Row(
-                          children: [
-                            const Icon(Icons.calendar_today, size: 14),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Dipinjam: ${dateFormat.format(borrow.borrowDate)}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        
-                        // Due date
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.event, 
-                              size: 14,
-                              color: isOverdue && !hasReturned ? Colors.red : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Tenggat: ${dateFormat.format(borrow.dueDate)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isOverdue && !hasReturned ? Colors.red : null,
-                                fontWeight: isOverdue && !hasReturned ? FontWeight.bold : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        // Return date if returned
-                        if (hasReturned) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle, 
-                                size: 14,
-                                color: isOverdue ? Colors.orange : Colors.green,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Dikembalikan: ${dateFormat.format(borrow.returnDate!)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isOverdue ? Colors.orange : Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        
-                        // Fine if any
-                        if (borrow.fine != null && borrow.fine! > 0) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.monetization_on, 
-                                size: 14,
-                                color: Colors.red,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Denda: Rp ${borrow.fine!.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: borrow.isPaid ? Colors.green : Colors.red,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              if (borrow.isPaid)
-                                const Text(
-                                  '(Lunas)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.green,
-                                  ),
-                                )
-                              else
-                                const Text(
-                                  '(Belum dibayar)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ],
+                  // Tombol kembalikan hanya muncul jika:
+                  // 1. Belum dikembalikan
+                  // 2. Status bukan pending
+                  if (!hasReturned && !isPending)
+                    ElevatedButton(
+                      onPressed: () {
+                        _showReturnConfirmation(borrow.id);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        minimumSize: const Size.fromHeight(40),
+                      ),
+                      child: const Text('KEMBALIKAN BUKU'),
                     ),
-                  ),
+
+                  // Tombol bayar denda muncul jika:
+                  // 1. Ada denda
+                  // 2. Belum dibayar
+                  if (needsPayment)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _showPaymentDialog(borrow.id, borrow.fine!);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          minimumSize: const Size.fromHeight(40),
+                        ),
+                        child: const Text('BAYAR DENDA'),
+                      ),
+                    ),
+
+                  // Peringatan keterlambatan
+                  if (isLate && !hasReturned && !isPending && !isOverdue)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Sudah ${DateTime.now().difference(borrow.borrowDate).inDays} hari dipinjam, harap segera dikembalikan untuk menghindari denda.',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+
+                  // Info jika status pending
+                  if (isPending)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Permintaan peminjaman sedang menunggu konfirmasi pustakawan.',
+                        style: TextStyle(
+                          color: Colors.amber.shade800,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-            
-            // Action buttons
-            if (!hasReturned)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: ElevatedButton(
-                  onPressed: () {
-                    _showReturnConfirmation(borrow.id);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    minimumSize: const Size.fromHeight(40),
-                  ),
-                  child: const Text('KEMBALIKAN BUKU'),
-                ),
-              ),
           ],
         ),
       ),
     );
   }
-  
+
+  // Tambahkan method untuk menampilkan dialog pembayaran denda
+  void _showPaymentDialog(String borrowId, double amount) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Bayar Denda'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Jumlah denda: Rp ${amount.toStringAsFixed(0)}'),
+            const SizedBox(height: 16),
+            const Text('Pilih metode pembayaran:'),
+            const SizedBox(height: 8),
+            _buildPaymentMethodButton(
+              icon: Icons.account_balance_wallet,
+              title: 'E-Wallet',
+              onTap: () => _processPayment(borrowId, 'e-wallet'),
+            ),
+            const SizedBox(height: 8),
+            _buildPaymentMethodButton(
+              icon: Icons.credit_card,
+              title: 'Kartu Kredit/Debit',
+              onTap: () => _processPayment(borrowId, 'card'),
+            ),
+            const SizedBox(height: 8),
+            _buildPaymentMethodButton(
+              icon: Icons.person,
+              title: 'Bayar di Perpustakaan',
+              onTap: () => _processPayment(borrowId, 'onsite'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('BATALKAN'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodButton({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.blue),
+              const SizedBox(width: 16),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const Spacer(),
+              const Icon(Icons.arrow_forward_ios, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processPayment(String borrowId, String method) async {
+    Navigator.pop(context); // Close payment dialog
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LoadingIndicator(),
+            SizedBox(height: 16),
+            Text('Memproses pembayaran...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Process payment
+      final success = await ref
+          .read(borrowControllerProvider.notifier)
+          .payFine(borrowId, method);
+
+      if (mounted) {
+        // Close loading dialog
+        Navigator.pop(context);
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pembayaran berhasil diproses'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal memproses pembayaran'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        // Close loading dialog
+        Navigator.pop(context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showReturnConfirmation(String borrowId) {
     showDialog(
       context: context,
@@ -333,10 +372,11 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              
-              final success = await ref.read(borrowControllerProvider.notifier)
+
+              final success = await ref
+                  .read(borrowControllerProvider.notifier)
                   .returnBook(borrowId);
-              
+
               if (success && mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(

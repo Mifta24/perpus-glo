@@ -43,6 +43,8 @@ final booksCountProvider = FutureProvider<int>((ref) async {
   return repository.getBooksCount();
 });
 
+
+
 class BookController extends StateNotifier<AsyncValue<void>> {
   final BookRepository _repository;
 
@@ -92,35 +94,35 @@ class BookController extends StateNotifier<AsyncValue<void>> {
 }
 
 // Provider untuk aksi peminjaman & pengembalian buku
-class BorrowController extends StateNotifier<AsyncValue<void>> {
-  final BookRepository _repository;
+// class BorrowController extends StateNotifier<AsyncValue<void>> {
+//   final BookRepository _repository;
 
-  BorrowController(this._repository) : super(const AsyncValue.data(null));
+//   BorrowController(this._repository) : super(const AsyncValue.data(null));
 
-  Future<bool> borrowBook(String bookId) async {
-    state = const AsyncValue.loading();
-    try {
-      await _repository.borrowBook(bookId);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
-      return false;
-    }
-  }
+//   Future<bool> borrowBook(String bookId) async {
+//     state = const AsyncValue.loading();
+//     try {
+//       await _repository.borrowBook(bookId);
+//       state = const AsyncValue.data(null);
+//       return true;
+//     } catch (e, stack) {
+//       state = AsyncValue.error(e, stack);
+//       return false;
+//     }
+//   }
 
-  Future<bool> returnBook(String bookId) async {
-    state = const AsyncValue.loading();
-    try {
-      await _repository.returnBook(bookId);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
-      return false;
-    }
-  }
-}
+//   Future<bool> returnBook(String bookId) async {
+//     state = const AsyncValue.loading();
+//     try {
+//       await _repository.returnBook(bookId);
+//       state = const AsyncValue.data(null);
+//       return true;
+//     } catch (e, stack) {
+//       state = AsyncValue.error(e, stack);
+//       return false;
+//     }
+//   }
+// }
 
 final bookControllerProvider =
     StateNotifierProvider<BookController, AsyncValue<void>>((ref) {
@@ -128,11 +130,11 @@ final bookControllerProvider =
   return BookController(repository);
 });
 
-final borrowControllerProvider =
-    StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
-  final repository = ref.watch(bookRepositoryProvider);
-  return BorrowController(repository);
-});
+// final borrowControllerProvider =
+//     StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
+//   final repository = ref.watch(bookRepositoryProvider);
+//   return BorrowController(repository);
+// });
 
 // Tambahkan providers berikut
 
