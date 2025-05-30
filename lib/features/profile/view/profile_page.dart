@@ -48,6 +48,7 @@ class ProfilePage extends ConsumerWidget {
 
   Widget _buildProfileContent(BuildContext context, WidgetRef ref, UserProfileModel profile) {
     return SingleChildScrollView(
+      
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -133,28 +134,53 @@ class ProfilePage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              OutlinedButton(
-                onPressed: () {
-                  context.push('/history');
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.history),
-                    SizedBox(width: 8),
-                    Text('Riwayat Aktivitas'),
-                  ],
+            OutlinedButton(
+              onPressed: () {
+                context.push('/history');
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.history),
+                  SizedBox(width: 8),
+                  Text('Riwayat Aktivitas'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        // Admin Dashboard button (only shown for admin/librarian)
+        if (profile.role == UserRole.admin || profile.role == UserRole.librarian)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                context.go('/admin');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _getRoleColor(profile.role),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              icon: const Icon(Icons.admin_panel_settings),
+              label: const Text(
+                'Dashboard Admin', 
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
               ),
-            ],
+            ),
           ),
-        ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   Widget _buildProfilePicture(BuildContext context, WidgetRef ref, UserProfileModel profile) {
     final profileController = ref.watch(profileControllerProvider);

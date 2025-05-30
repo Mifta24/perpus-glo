@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 enum UserRole {
   user,
@@ -15,6 +16,17 @@ extension UserRoleExtension on UserRole {
         return 'Pustakawan';
       case UserRole.admin:
         return 'Administrator';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case UserRole.user:
+        return Colors.blue;
+      case UserRole.librarian:
+        return Colors.orange;
+      case UserRole.admin:
+        return Colors.red;
     }
   }
 }
@@ -112,7 +124,35 @@ class UserProfileModel {
     }
   }
 
+  // Tambahkan ini di dalam class UserProfileModel
   bool get isAdmin => role == UserRole.admin;
   bool get isLibrarian => role == UserRole.librarian;
   bool get isUser => role == UserRole.user;
+
+// Dan pastikan ada method untuk mendapatkan label dan warna role
+  String get roleLabel => _getRoleLabel(role);
+  Color get roleColor => _getRoleColor(role);
+
+// Helper methods
+  String _getRoleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Administrator';
+      case UserRole.librarian:
+        return 'Pustakawan';
+      case UserRole.user:
+        return 'Pengguna';
+    }
+  }
+
+  Color _getRoleColor(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return Colors.red;
+      case UserRole.librarian:
+        return Colors.orange;
+      case UserRole.user:
+        return Colors.blue;
+    }
+  }
 }

@@ -152,18 +152,22 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
                     // Category dropdown
                     categoriesAsync.when(
                       data: (categories) {
-                        if (_selectedCategory.isEmpty && categories.isNotEmpty) {
+                        if (_selectedCategory.isEmpty &&
+                            categories.isNotEmpty) {
                           _selectedCategory = categories.first.name;
                         }
-                        
+
                         return DropdownButtonFormField<String>(
                           decoration: const InputDecoration(
                             labelText: 'Kategori',
                             border: OutlineInputBorder(),
                           ),
-                          value: categories.any((c) => c.name == _selectedCategory)
-                              ? _selectedCategory
-                              : (categories.isNotEmpty ? categories.first.name : null),
+                          value:
+                              categories.any((c) => c.name == _selectedCategory)
+                                  ? _selectedCategory
+                                  : (categories.isNotEmpty
+                                      ? categories.first.name
+                                      : null),
                           items: categories.map((category) {
                             return DropdownMenuItem<String>(
                               value: category.name,
@@ -202,7 +206,8 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(DateFormat('dd/MM/yyyy').format(_publishedDate)),
+                            Text(DateFormat('dd/MM/yyyy')
+                                .format(_publishedDate)),
                             const Icon(Icons.calendar_today),
                           ],
                         ),
@@ -223,7 +228,8 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
                         if (value == null || value.isEmpty) {
                           return 'Jumlah stok tidak boleh kosong';
                         }
-                        if (int.tryParse(value) == null || int.parse(value) <= 0) {
+                        if (int.tryParse(value) == null ||
+                            int.parse(value) <= 0) {
                           return 'Jumlah stok harus berupa angka positif';
                         }
                         return null;
@@ -238,7 +244,8 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
                       height: 50,
                       child: ElevatedButton(
                         onPressed: _saveBook,
-                        child: Text(isEditing ? 'SIMPAN PERUBAHAN' : 'TAMBAH BUKU'),
+                        child: Text(
+                            isEditing ? 'SIMPAN PERUBAHAN' : 'TAMBAH BUKU'),
                       ),
                     ),
                   ],
@@ -249,8 +256,9 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
   }
 
   Widget _buildImagePicker() {
-    final hasImage = _imageFile != null || (_existingImageUrl != null && _existingImageUrl!.isNotEmpty);
-    
+    final hasImage = _imageFile != null ||
+        (_existingImageUrl != null && _existingImageUrl!.isNotEmpty);
+
     return GestureDetector(
       onTap: _pickImage,
       child: Container(
@@ -334,13 +342,12 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
     // Upload image if selected
     // if (_imageFile != null) {
     //   try {
-    //     final storageRef = FirebaseService.storage.ref().child(
-    //         'book_covers/${DateTime.now().millisecondsSinceEpoch}.jpg');
-        
-    //     final uploadTask = await storageRef.putFile(
-    //         _imageFile!,
-    //         SettableMetadata(contentType: 'image/jpeg'));
-            
+    //     final storageRef = FirebaseService.storage
+    //         .ref()
+    //         .child('book_covers/${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+    //     final uploadTask = await storageRef.putFile(_imageFile!);
+
     //     coverUrl = await uploadTask.ref.getDownloadURL();
     //   } catch (e) {
     //     ScaffoldMessenger.of(context).showSnackBar(
@@ -356,25 +363,40 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
     // Create or update book
     try {
       final totalStock = int.parse(_totalStockController.text);
-      
+
+      // Ambil availableStock dari buku yang ada untuk edit
+      int availableStock = totalStock;
+      if (isEditing) {
+        final existingBook = ref.read(bookByIdProvider(widget.bookId!)).value;
+        if (existingBook != null) {
+          // Jika total stock berubah, sesuaikan available stock
+          if (existingBook.totalStock != totalStock) {
+            final stockDiff = totalStock - existingBook.totalStock;
+            availableStock = existingBook.availableStock + stockDiff;
+            if (availableStock < 0) availableStock = 0;
+          } else {
+            availableStock = existingBook.availableStock;
+          }
+        }
+      }
+
       final book = BookModel(
-        id: isEditing ? widget.bookId! : '', // Provide a non-null String
+        id: isEditing ? widget.bookId : null, // Set id hanya jika editing
         title: _titleController.text,
         author: _authorController.text,
         coverUrl: coverUrl,
         description: _descriptionController.text,
         category: _selectedCategory,
         totalStock: totalStock,
-        availableStock: isEditing
-            ? (ref.read(bookByIdProvider(widget.bookId!)).value?.availableStock ?? totalStock)
-            : totalStock,
+        availableStock: availableStock,
         publishedDate: _publishedDate,
-        // addedAt: DateTime.now(),
       );
 
       bool success;
       if (isEditing) {
-        success = await ref.read(bookControllerProvider.notifier).updateBook(book);
+        success = await ref
+            .read(bookControllerProvider.notifier)
+            .updateBook(widget.bookId!, book);
       } else {
         success = await ref.read(bookControllerProvider.notifier).addBook(book);
       }

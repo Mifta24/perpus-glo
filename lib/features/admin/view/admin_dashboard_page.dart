@@ -9,9 +9,20 @@ import '../../categories/providers/category_provider.dart';
 import '../../history/providers/history_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../profile/model/user_profile_model.dart';
+import '../../profile/providers/profile_provider.dart';
 
 class AdminDashboardPage extends ConsumerWidget {
   const AdminDashboardPage({super.key});
+  String _getRoleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Administrator';
+      case UserRole.librarian:
+        return 'Pustakawan';
+      case UserRole.user:
+        return 'Pengguna';
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -176,7 +187,7 @@ class AdminDashboardPage extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            profile.role.label,
+                            _getRoleLabel(profile.role),
                             style: TextStyle(
                               color: Colors.deepPurple.shade700,
                             ),
@@ -509,7 +520,7 @@ class AdminDashboardPage extends ConsumerWidget {
             title: const Text('Dashboard'),
             onTap: () {
               Navigator.pop(context);
-              context.go('/admin/dashboard');
+              context.go('/admin');
             },
           ),
           ListTile(

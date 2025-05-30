@@ -9,7 +9,8 @@ final userBorrowHistoryProvider = StreamProvider<List<BorrowModel>>((ref) {
 });
 
 // Provider untuk detail peminjaman berdasarkan ID
-final borrowByIdProvider = FutureProvider.family<BorrowModel?, String>((ref, borrowId) async {
+final borrowByIdProvider =
+    FutureProvider.family<BorrowModel?, String>((ref, borrowId) async {
   final repository = ref.watch(borrowRepositoryProvider);
   return repository.getBorrowById(borrowId);
 });
@@ -21,7 +22,7 @@ final borrowFilterProvider = StateProvider<BorrowStatus?>((ref) => null);
 final filteredBorrowsProvider = Provider<List<BorrowModel>>((ref) {
   final borrowsAsync = ref.watch(userBorrowHistoryProvider);
   final filter = ref.watch(borrowFilterProvider);
-  
+
   return borrowsAsync.when(
     data: (borrows) {
       if (filter == null) return borrows;
@@ -50,16 +51,28 @@ final overdueBorrowsCountProvider = FutureProvider<int>((ref) async {
   return repository.getOverdueBorrowsCount();
 });
 
+// Tambahkan provider untuk pending borrows
+final pendingBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
+  final repository = ref.watch(borrowRepositoryProvider);
+  return repository.getPendingBorrows();
+});
+
+// Count of pending borrow requests
+final pendingBorrowsCountProvider = StreamProvider<int>((ref) {
+  final pendingBorrowsStream = ref.watch(pendingBorrowsProvider.stream);
+  return pendingBorrowsStream.map((event) => event.length);
+});
+
 // Controller untuk aksi peminjaman
 class BorrowController extends StateNotifier<AsyncValue<void>> {
   final BorrowRepository _repository;
-  
-  BorrowController(this._repository) : super(const AsyncValue.data(null));
+
+    BorrowController(this._repository) : super(const AsyncValue.data(null));
   
   Future<bool> borrowBook(String bookId) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.borrowBook(bookId);
+      final borrowId = await _repository.borrowBook(bookId);
       state = const AsyncValue.data(null);
       return true;
     } catch (e, stack) {
@@ -68,6 +81,32 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
     }
   }
   
+  // Add confirm and reject methods
+  Future<bool> confirmBorrow(String borrowId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.confirmBorrow(borrowId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+  
+  Future<bool> rejectBorrow(String borrowId, String reason) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.rejectBorrow(borrowId, reason);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+  
+  // Add returnBook method
   Future<bool> returnBook(String borrowId) async {
     state = const AsyncValue.loading();
     try {
@@ -79,33 +118,10 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
-  
-  Future<bool> updateBorrowStatus(String borrowId, BorrowStatus status) async {
-    state = const AsyncValue.loading();
-    try {
-      await _repository.updateBorrowStatus(borrowId, status);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
-      return false;
-    }
-  }
-  
-  Future<bool> markFineAsPaid(String borrowId) async {
-    state = const AsyncValue.loading();
-    try {
-      await _repository.markFineAsPaid(borrowId);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
-      return false;
-    }
-  }
 }
 
-final borrowControllerProvider = StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
+final borrowControllerProvider =
+    StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {
   final repository = ref.watch(borrowRepositoryProvider);
   return BorrowController(repository);
 });

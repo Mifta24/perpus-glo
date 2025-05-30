@@ -117,7 +117,7 @@ class PaymentRepository {
       });
       
       // 2. Mark borrow fine as paid
-      await _borrowRepository.markFineAsPaid(payment.borrowId);
+      // await _borrowRepository.markFineAsPaid(payment.borrowId);
       
       // 3. Update user's fine amount
       final userDoc = await transaction.get(_usersRef.doc(payment.userId));

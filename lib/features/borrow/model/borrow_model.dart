@@ -2,34 +2,44 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum BorrowStatus {
-  active,    // Sedang dipinjam
-  returned,  // Sudah dikembalikan
-  overdue,   // Terlambat
-  lost       // Hilang
+  pending, // Menunggu konfirmasi
+  active, // Sedang dipinjam
+  returned, // Sudah dikembalikan
+  overdue, // Terlambat
+  rejected, // Ditolak
+  lost // Hilang
 }
 
 extension BorrowStatusExtension on BorrowStatus {
   String get name {
     switch (this) {
+      case BorrowStatus.pending:
+        return 'Menunggu Konfirmasi';
       case BorrowStatus.active:
         return 'Dipinjam';
       case BorrowStatus.returned:
         return 'Dikembalikan';
       case BorrowStatus.overdue:
         return 'Terlambat';
+      case BorrowStatus.rejected:
+        return 'Ditolak';
       case BorrowStatus.lost:
         return 'Hilang';
     }
   }
-  
+
   Color get color {
     switch (this) {
+      case BorrowStatus.pending:
+        return Colors.amber;
       case BorrowStatus.active:
         return Colors.blue;
       case BorrowStatus.returned:
         return Colors.green;
       case BorrowStatus.overdue:
         return Colors.orange;
+      case BorrowStatus.rejected:
+        return Colors.red.shade700;
       case BorrowStatus.lost:
         return Colors.red;
     }
@@ -46,12 +56,21 @@ class BorrowModel {
   final BorrowStatus status;
   final double? fine;
   final bool isPaid;
-  
-  // Properti tambahan untuk UI, tidak disimpan di Firestore
+
+  // Fields for request system
+  final DateTime requestDate;
+  final DateTime? confirmDate;
+  final String? confirmedBy;
+  final DateTime? rejectDate;
+  final String? rejectedBy;
+  final String? rejectReason;
+
+// Properti tambahan untuk UI, tidak disimpan di Firestore
   final String? bookTitle;
   final String? bookCover;
   final String? booksAuthor;
-  
+  final String? userName; // Nama peminjam (untuk admin/librarian)
+
   BorrowModel({
     required this.id,
     required this.userId,
@@ -62,11 +81,18 @@ class BorrowModel {
     required this.status,
     this.fine,
     required this.isPaid,
+    required this.requestDate,
+    this.confirmDate,
+    this.confirmedBy,
+    this.rejectDate,
+    this.rejectedBy,
+    this.rejectReason,
     this.bookTitle,
     this.bookCover,
     this.booksAuthor,
+    this.userName,
   });
-  
+
   factory BorrowModel.fromJson(Map<String, dynamic> json) {
     return BorrowModel(
       id: json['id'] as String,
@@ -74,23 +100,48 @@ class BorrowModel {
       bookId: json['bookId'] as String,
       borrowDate: (json['borrowDate'] as Timestamp).toDate(),
       dueDate: (json['dueDate'] as Timestamp).toDate(),
-      returnDate: json['returnDate'] != null 
-          ? (json['returnDate'] as Timestamp).toDate() 
+      returnDate: json['returnDate'] != null
+          ? (json['returnDate'] as Timestamp).toDate()
           : null,
-      status: BorrowStatus.values.firstWhere(
-        (e) => e.toString() == 'BorrowStatus.${json['status']}',
-        orElse: () => BorrowStatus.active,
-      ),
+      status: _statusFromString(json['status'] as String? ?? 'active'),
       fine: json['fine']?.toDouble(),
       isPaid: json['isPaid'] as bool? ?? false,
+      requestDate: (json['requestDate'] as Timestamp?)?.toDate() ??
+          (json['borrowDate'] as Timestamp).toDate(),
+      confirmDate: (json['confirmDate'] as Timestamp?)?.toDate(),
+      confirmedBy: json['confirmedBy'] as String?,
+      rejectDate: (json['rejectDate'] as Timestamp?)?.toDate(),
+      rejectedBy: json['rejectedBy'] as String?,
+      rejectReason: json['rejectReason'] as String?,
       bookTitle: json['bookTitle'] as String?,
       bookCover: json['bookCover'] as String?,
+      userName: json['userName'] as String?,
     );
   }
-  
+
+  // Helper method to convert status string to enum
+  static BorrowStatus _statusFromString(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return BorrowStatus.pending;
+      case 'active':
+        return BorrowStatus.active;
+      case 'returned':
+        return BorrowStatus.returned;
+      case 'overdue':
+        return BorrowStatus.overdue;
+      case 'rejected':
+        return BorrowStatus.rejected;
+      case 'lost':
+        return BorrowStatus.lost;
+      default:
+        return BorrowStatus.active;
+    }
+  }
+
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      // Base properties
       'userId': userId,
       'bookId': bookId,
       'borrowDate': borrowDate,
@@ -99,9 +150,19 @@ class BorrowModel {
       'status': status.toString().split('.').last,
       'fine': fine,
       'isPaid': isPaid,
-      // Properti UI tidak disimpan
+
+      // Request system properties
+      'requestDate': requestDate,
+      'confirmDate': confirmDate,
+      'confirmedBy': confirmedBy,
+      'rejectDate': rejectDate,
+      'rejectedBy': rejectedBy,
+      'rejectReason': rejectReason,
+
+      // UI properties tidak disimpan ke Firestore
     };
   }
+
   // update method toJson() to include bookTitle and bookCover
   BorrowModel copyWith({
     String? id,
@@ -113,8 +174,15 @@ class BorrowModel {
     BorrowStatus? status,
     double? fine,
     bool? isPaid,
+    DateTime? requestDate,
+    DateTime? confirmDate,
+    String? confirmedBy,
+    DateTime? rejectDate,
+    String? rejectedBy,
+    String? rejectReason,
     String? bookTitle,
     String? bookCover,
+    String? userName,
   }) {
     return BorrowModel(
       id: id ?? this.id,
@@ -126,11 +194,18 @@ class BorrowModel {
       status: status ?? this.status,
       fine: fine ?? this.fine,
       isPaid: isPaid ?? this.isPaid,
+      requestDate: requestDate ?? this.requestDate,
+      confirmDate: confirmDate ?? this.confirmDate,
+      confirmedBy: confirmedBy ?? this.confirmedBy,
+      rejectDate: rejectDate ?? this.rejectDate,
+      rejectedBy: rejectedBy ?? this.rejectedBy,
+      rejectReason: rejectReason ?? this.rejectReason,
       bookTitle: bookTitle ?? this.bookTitle,
       bookCover: bookCover ?? this.bookCover,
+      userName: userName ?? this.userName,
     );
   }
-  
+
   // Method untuk cek apakah peminjaman telah melewati tenggat waktu
   bool isOverdue() {
     if (returnDate != null) {
@@ -138,17 +213,17 @@ class BorrowModel {
     }
     return DateTime.now().isAfter(dueDate);
   }
-  
+
   // Method untuk menghitung denda
   double calculateFine() {
     if (returnDate == null && !isOverdue()) return 0;
-    
+
     final DateTime endDate = returnDate ?? DateTime.now();
     if (!endDate.isAfter(dueDate)) return 0;
-    
+
     // Hitung selisih hari
     final difference = endDate.difference(dueDate).inDays;
-    
+
     // Rumus denda: Rp 1.000 per hari terlambat
     return difference * 1000;
   }

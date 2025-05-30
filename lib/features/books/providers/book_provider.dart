@@ -52,7 +52,9 @@ class BookController extends StateNotifier<AsyncValue<void>> {
   Future<bool> addBook(BookModel book) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.addBook(book);
+      // Saat menambahkan buku, id seharusnya tidak ada
+      final bookWithoutId = book.copyWith(id: null);
+      final newBookId = await _repository.addBook(bookWithoutId);
       state = const AsyncValue.data(null);
       return true;
     } catch (e, stack) {
@@ -61,11 +63,12 @@ class BookController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  // Update book for admin
-  Future<bool> updateBook(BookModel book) async {
+  Future<bool> updateBook(String bookId, BookModel book) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.updateBook(book);
+      // Saat update, pastikan id sesuai dengan parameter
+      final bookWithId = book.copyWith(id: bookId);
+      await _repository.updateBook(bookWithId);
       state = const AsyncValue.data(null);
       return true;
     } catch (e, stack) {

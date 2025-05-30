@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-// BookModel.dart digunakan untuk menyimpan data buku
-// yang diambil dari Firestore. Model ini memiliki beberapa atribut
+
 class BookModel {
-  final String id;
+  final String? id; // Ubah menjadi nullable (opsional)
   final String title;
   final String author;
   final String coverUrl;
@@ -13,7 +12,7 @@ class BookModel {
   final DateTime publishedDate;
 
   BookModel({
-    required this.id,
+    this.id, // Buat id menjadi opsional
     required this.title,
     required this.author,
     required this.coverUrl,
@@ -26,7 +25,7 @@ class BookModel {
 
   factory BookModel.fromJson(Map<String, dynamic> json) {
     return BookModel(
-      id: json['id'] as String,
+      id: json['id'] as String?, // Tambahkan id jika ada
       title: json['title'] as String,
       author: json['author'] as String,
       coverUrl: json['coverUrl'] as String,
@@ -39,8 +38,7 @@ class BookModel {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
+    final map = {
       'title': title,
       'author': author,
       'coverUrl': coverUrl,
@@ -50,6 +48,36 @@ class BookModel {
       'totalStock': totalStock,
       'publishedDate': publishedDate,
     };
+    
+    // Hanya tambahkan id ke map jika tidak null
+    if (id != null) map['id'] = id!;
+    
+    return map;
+  }
+
+  // Method untuk membuat salinan objek dengan nilai yang diubah
+  BookModel copyWith({
+    String? id,
+    String? title,
+    String? author,
+    String? coverUrl,
+    String? description,
+    String? category,
+    int? availableStock,
+    int? totalStock,
+    DateTime? publishedDate,
+  }) {
+    return BookModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      author: author ?? this.author,
+      coverUrl: coverUrl ?? this.coverUrl,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      availableStock: availableStock ?? this.availableStock,
+      totalStock: totalStock ?? this.totalStock,
+      publishedDate: publishedDate ?? this.publishedDate,
+    );
   }
 
   bool get isAvailable => availableStock > 0;

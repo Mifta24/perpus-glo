@@ -44,7 +44,10 @@ class AuthRepository {
         'photoUrl': null,
         'createdAt': FieldValue.serverTimestamp(),
         'borrowedBooks': [],
+        'pendingBooks': [], // Tambahkan pendingBooks
         'fineAmount': 0.0,
+        'role': 'user', // Tambahkan role user sebagai default
+        'lastLoginAt': FieldValue.serverTimestamp(),
       });
     }
 

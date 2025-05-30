@@ -239,6 +239,19 @@ class ProfileRepository {
   Future<void> activateUser(String userId) async {
     await _usersRef.doc(userId).update({'isActive': true});
   }
+
+  Future<void> logAdminAction(String action, String targetId, String? details) async {
+  final userId = currentUserId;
+  if (userId == null) return;
+  
+  await _firestore.collection('adminLogs').add({
+    'adminId': userId,
+    'action': action,
+    'targetId': targetId,
+    'details': details,
+    'timestamp': FieldValue.serverTimestamp(),
+  });
+}
 }
 
 // Provider for ProfileRepository

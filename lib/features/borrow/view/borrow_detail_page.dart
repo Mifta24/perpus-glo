@@ -367,15 +367,19 @@ class BorrowDetailPage extends ConsumerWidget {
   }
   
   IconData _getStatusIcon(BorrowStatus status) {
-    switch (status) {
-      case BorrowStatus.active:
-        return Icons.bookmark;
-      case BorrowStatus.returned:
-        return Icons.check_circle;
-      case BorrowStatus.overdue:
-        return Icons.warning;
-      case BorrowStatus.lost:
-        return Icons.report_problem;
-    }
+  switch (status) {
+    case BorrowStatus.pending:
+      return Icons.hourglass_empty;
+    case BorrowStatus.active:
+      return Icons.bookmark;
+    case BorrowStatus.returned:
+      return Icons.check_circle;
+    case BorrowStatus.overdue:
+      return Icons.warning;
+    case BorrowStatus.rejected:
+      return Icons.cancel;
+    case BorrowStatus.lost:
+      return Icons.report_problem;
   }
+}
 }
