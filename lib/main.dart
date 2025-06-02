@@ -8,6 +8,8 @@ import 'features/notification/service/notification_service.dart';
 import 'features/categories/providers/category_provider.dart'; // Tambahkan import ini
 import 'features/notification/controller/notification_controller.dart';
 import 'features/notification/providers/notification_provider.dart';
+import 'features/borrow/providers/borrow_provider.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -22,6 +24,14 @@ void main() async {
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
+
+  void _checkOverdueBooks(WidgetRef ref) {
+    ref.read(checkOverdueBooksProvider);
+
+      // Schedule return reminders
+  final notificationService = ref.read(notificationServiceProvider);
+  notificationService.scheduleReturnReminders();
+  }
 
   void _setupNotificationHandlers(WidgetRef ref) {
     ref
@@ -55,6 +65,11 @@ class MyApp extends ConsumerWidget {
           .read(categoryControllerProvider.notifier)
           .initializeDefaultCategories();
     });
+
+    // Check for overdue books when app starts
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _checkOverdueBooks(ref);
+  });
 
     return MaterialApp.router(
       title: 'Perpus GLO',

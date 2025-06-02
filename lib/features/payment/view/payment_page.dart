@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:perpusglo/features/borrow/data/borrow_repository.dart';
+import 'package:perpusglo/features/borrow/model/borrow_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../common/widgets/loading_indicator.dart';
@@ -12,7 +14,7 @@ class PaymentPage extends ConsumerStatefulWidget {
   final String fineId; // ID of the borrow record
   final double amount;
 
-  const PaymentPage({
+  PaymentPage({
     super.key,
     required this.fineId,
     required this.amount,
@@ -24,6 +26,7 @@ class PaymentPage extends ConsumerStatefulWidget {
 
 class _PaymentPageState extends ConsumerState<PaymentPage> {
   PaymentModel? _payment;
+  BorrowModel? _borrowDetail;
   bool _isQrScanning = false;
   int _selectedPaymentMethod = 0; // 0 = QR, 1 = Transfer, 2 = Cash
 
@@ -37,6 +40,21 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   void initState() {
     super.initState();
     _createPayment();
+    _fetchBorrowDetail();
+  }
+
+  Future<void> _fetchBorrowDetail() async {
+    try {
+      final borrow =
+          await ref.read(borrowRepositoryProvider).getBorrowById(widget.fineId);
+      if (borrow != null) {
+        setState(() {
+          _borrowDetail = borrow;
+        });
+      }
+    } catch (e) {
+      print("Error fetching borrow details: $e");
+    }
   }
 
   Future<void> _createPayment() async {
@@ -202,50 +220,93 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Payment info card
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Total Denda',
-                        style: TextStyle(fontSize: 16),
+          // Borrow Info - Tambahkan ini
+          if (_borrowDetail != null)
+            Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Detail Peminjaman',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text(
-                        currencyFormat.format(widget.amount),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Book info
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Book cover
+                        if (_borrowDetail!.bookCover != null)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              _borrowDetail!.bookCover!,
+                              width: 60,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 60,
+                                height: 90,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.book),
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 60,
+                            height: 90,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.book),
+                          ),
+
+                        const SizedBox(width: 12),
+
+                        // Book details
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _borrowDetail!.bookTitle ?? 'Unknown Book',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              if (_borrowDetail!.booksAuthor != null)
+                                Text(_borrowDetail!.booksAuthor!,
+                                    style: const TextStyle(fontSize: 12)),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Jatuh Tempo: ${DateFormat('dd MMM yyyy').format(_borrowDetail!.dueDate)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _borrowDetail!.dueDate
+                                          .isBefore(DateTime.now())
+                                      ? Colors.red
+                                      : Colors.black,
+                                ),
+                              ),
+                              if (_borrowDetail!.returnDate != null)
+                                Text(
+                                  'Dikembalikan: ${DateFormat('dd MMM yyyy').format(_borrowDetail!.returnDate!)}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('ID Pembayaran'),
-                      Text(_payment?.id ?? '-'),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('ID Peminjaman'),
-                      Text(widget.fineId),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
           const SizedBox(height: 24),
 

@@ -14,7 +14,8 @@ enum NotificationType {
   overdue,         // Buku terlambat
   fine,            // Denda
   payment,         // Pembayaran
-  announcement,    // Pengumuman
+  announcement, 
+  bookReturnedLate, bookReturnRequest,    // Pengumuman
 }
 
 extension NotificationTypeExtension on NotificationType {
@@ -46,6 +47,10 @@ extension NotificationTypeExtension on NotificationType {
         return 'Pembayaran';
       case NotificationType.announcement:
         return 'Pengumuman';
+      case NotificationType.bookReturnedLate: // Tambahkan ini
+        return 'Buku Dikembalikan Terlambat';
+      case NotificationType.bookReturnRequest: // Tambahkan ini
+        return 'Permintaan Pengembalian Buku';
     }
   }
   
@@ -77,6 +82,10 @@ extension NotificationTypeExtension on NotificationType {
         return Icons.payment;
       case NotificationType.announcement:
         return Icons.campaign;
+      case NotificationType.bookReturnedLate: // Tambahkan ini
+        return Icons.history;
+      case NotificationType.bookReturnRequest: // Tambahkan ini
+        return Icons.request_page;
     }
   }
   
@@ -108,6 +117,10 @@ extension NotificationTypeExtension on NotificationType {
         return Colors.green;
       case NotificationType.announcement:
         return Colors.indigo;
+      case NotificationType.bookReturnedLate: // Tambahkan ini
+        return Colors.red.shade700;
+      case NotificationType.bookReturnRequest: // Tambahkan ini
+        return Colors.pink;
     }
   }
 }

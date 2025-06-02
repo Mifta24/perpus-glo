@@ -35,18 +35,20 @@ final filteredBorrowsProvider = Provider<List<BorrowModel>>((ref) {
 });
 
 // Provider untuk mengecek apakah buku dalam status pending
-final isBookPendingProvider = FutureProvider.family<bool, String>((ref, bookId) async {
+final isBookPendingProvider =
+    FutureProvider.family<bool, String>((ref, bookId) async {
   final currentUser = await ref.watch(currentUserProvider.future);
   if (currentUser == null) return false;
-  
+
   return currentUser.pendingBooks.contains(bookId);
 });
 
 // Provider untuk mengecek apakah buku dalam status borrowed
-final isBookBorrowedProvider = FutureProvider.family<bool, String>((ref, bookId) async {
+final isBookBorrowedProvider =
+    FutureProvider.family<bool, String>((ref, bookId) async {
   final currentUser = await ref.watch(currentUserProvider.future);
   if (currentUser == null) return false;
-  
+
   return currentUser.borrowedBooks.contains(bookId);
 });
 
@@ -155,8 +157,28 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
     try {
       // Implement payment logic
       await _repository.payFine(borrowId, paymentMethod);
+
       // Refresh data
       ref.invalidate(userBorrowHistoryProvider);
+      ref.invalidate(currentUserProvider);
+
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+
+  // Di BorrowController
+  Future<bool> confirmReturn(String borrowId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.confirmReturn(borrowId);
+
+      // Refresh data
+      ref.invalidate(pendingReturnBorrowsProvider);
+
       state = const AsyncValue.data(null);
       return true;
     } catch (e, stack) {
@@ -165,6 +187,18 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
     }
   }
 }
+
+// Di borrow_provider.dart
+final pendingReturnBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
+  final repository = ref.watch(borrowRepositoryProvider);
+  return repository.getPendingReturnBorrows();
+});
+
+// Overdue books check provider
+final checkOverdueBooksProvider = FutureProvider<void>((ref) async {
+  final repository = ref.watch(borrowRepositoryProvider);
+  await repository.checkOverdueBooks();
+});
 
 final borrowControllerProvider =
     StateNotifierProvider<BorrowController, AsyncValue<void>>((ref) {

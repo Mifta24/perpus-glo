@@ -205,6 +205,14 @@ class NotificationPage extends ConsumerWidget {
         icon = Icons.campaign;
         color = Colors.indigo;
         break;
+      case NotificationType.bookReturnedLate:
+        icon = Icons.history;
+        color = Colors.deepOrange;
+        break;
+      case NotificationType.bookReturnRequest:
+        icon = Icons.request_page;
+        color = Colors.blueAccent;
+        break;
     }
 
     return Container(
@@ -227,6 +235,13 @@ class NotificationPage extends ConsumerWidget {
 
     switch (notification.type) {
       case NotificationType.reminder:
+      case NotificationType.bookReturnedLate:
+      case NotificationType.bookReturnRequest:
+        final borrowId = notification.data?['borrowId'] as String?;
+        if (borrowId != null) {
+          context.push('/borrow/$borrowId');
+        }
+        break;
       case NotificationType.overdue:
       case NotificationType.returnReminder:
         final borrowId = notification.data?['borrowId'] as String?;

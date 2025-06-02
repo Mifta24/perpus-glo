@@ -380,6 +380,8 @@ class BorrowDetailPage extends ConsumerWidget {
       return Icons.cancel;
     case BorrowStatus.lost:
       return Icons.report_problem;
+    case BorrowStatus.pendingReturn:
+      return Icons.pending_actions;
   }
 }
 }

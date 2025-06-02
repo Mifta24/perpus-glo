@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum BorrowStatus {
   pending, // Menunggu konfirmasi
   active, // Sedang dipinjam
+  pendingReturn, // Menunggu pengembalian
   returned, // Sudah dikembalikan
   overdue, // Terlambat
   rejected, // Ditolak
@@ -17,6 +18,8 @@ extension BorrowStatusExtension on BorrowStatus {
         return 'Menunggu Konfirmasi';
       case BorrowStatus.active:
         return 'Dipinjam';
+      case BorrowStatus.pendingReturn:
+        return 'Menunggu Pengembalian';
       case BorrowStatus.returned:
         return 'Dikembalikan';
       case BorrowStatus.overdue:
@@ -34,6 +37,8 @@ extension BorrowStatusExtension on BorrowStatus {
         return Colors.amber;
       case BorrowStatus.active:
         return Colors.blue;
+      case BorrowStatus.pendingReturn:
+        return Colors.teal;
       case BorrowStatus.returned:
         return Colors.green;
       case BorrowStatus.overdue:
@@ -54,7 +59,7 @@ class BorrowModel {
   final DateTime dueDate;
   final DateTime? returnDate;
   final BorrowStatus status;
-  final double? fine;
+  final double? fine;  // Denda yang dikenakan jika ada
   final bool isPaid;
 
   // Fields for request system
@@ -126,6 +131,8 @@ class BorrowModel {
         return BorrowStatus.pending;
       case 'active':
         return BorrowStatus.active;
+      case 'pendingreturn':
+        return BorrowStatus.pendingReturn;
       case 'returned':
         return BorrowStatus.returned;
       case 'overdue':

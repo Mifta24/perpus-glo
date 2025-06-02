@@ -1,13 +1,20 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perpusglo/features/notification/model/notification_model.dart';
+import 'package:perpusglo/features/notification/providers/notification_provider.dart';
 import '../../../core/services/firebase_service.dart';
 import '../model/borrow_model.dart';
 
 class BorrowRepository {
   final FirebaseFirestore _firestore = FirebaseService.firestore;
   final FirebaseAuth _auth = FirebaseService.auth;
+  final Ref _ref; // Tambahkan variabel ref
 
+  // Ubah constructor untuk menerima ref
+  BorrowRepository(this._ref);
   // Collection references
   CollectionReference get _borrowsRef => _firestore.collection('borrows');
   CollectionReference get _booksRef => _firestore.collection('books');
@@ -29,6 +36,33 @@ class BorrowRepository {
         .snapshots()
         .asyncMap((snapshot) async {
       final List<BorrowModel> borrows = [];
+      final now = DateTime.now();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        // Check if book is overdue but status hasn't been updated yet
+        if (data['status'] == 'active') {
+          final dueDate = (data['dueDate'] as Timestamp).toDate();
+          if (now.isAfter(dueDate)) {
+            // Update status ke overdue dan tambahkan denda
+            final daysLate = now.difference(dueDate).inDays;
+            final fine = daysLate > 0 ? daysLate * 2000.0 : 2000.0;
+
+            // Update document (gunakan async operation untuk tidak menghambat UI)
+            _borrowsRef.doc(doc.id).update({
+              'status': 'overdue',
+              'fine': data['fine'] ?? fine,
+              'isPaid': false,
+            });
+
+            // Update data lokal untuk UI
+            data['status'] = 'overdue';
+            data['fine'] = data['fine'] ?? fine;
+            data['isPaid'] = false;
+          }
+        }
+      }
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -153,15 +187,16 @@ class BorrowRepository {
         // 6. Create borrow record with consistent timestamps
         final now = DateTime.now();
         final dueDate =
-            now.add(const Duration(days: 14)); // 2 weeks borrowing period
+            now.add(const Duration(days: 7)); // 7 weeks borrowing period
 
         final borrowData = {
           'userId': userId,
           'bookId': bookId,
-          'borrowDate': now,
+          'borrowDate': now, // Set borrow date to now
           'dueDate': dueDate,
           'status': 'pending', // Status pending, menunggu konfirmasi
-          'isPaid': true, // No fine at first
+          'isPaid': false, // Denda belum dibayar jika ada
+          'fine': 0.0, // Denda awal 0 jika belum ada keterlambatan
           'requestDate': now, // Tambahkan tanggal pengajuan
         };
 
@@ -179,6 +214,204 @@ class BorrowRepository {
     } catch (e) {
       print("Error saat meminjam buku: $e");
       throw Exception('Gagal meminjam buku: ${e.toString()}');
+    }
+  }
+
+// Di BorrowRepository, tambahkan metode baru
+  Future<void> checkOverdueBooks() async {
+    try {
+      final now = DateTime.now();
+
+      // Ambil semua peminjaman dengan status 'active' dan dueDate < now
+      final overdueQuery = await _borrowsRef
+          .where('status', isEqualTo: 'active')
+          .where('dueDate', isLessThan: Timestamp.fromDate(now))
+          .get();
+
+      // Jika tidak ada yang terlambat, keluar
+      if (overdueQuery.docs.isEmpty) return;
+
+      // Gunakan batch untuk update banyak dokumen sekaligus
+      final batch = _firestore.batch();
+
+      for (final doc in overdueQuery.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final dueDate = (data['dueDate'] as Timestamp).toDate();
+
+        // Hitung denda (Rp 2.000 per hari terlambat)
+        final daysLate = now.difference(dueDate).inDays;
+        final fine =
+            daysLate > 0 ? daysLate * 2000.0 : 2000.0; // Minimal 1 hari denda
+
+        // Update status menjadi overdue dan tambahkan denda jika belum ada
+        batch.update(doc.reference, {
+          'status': 'overdue',
+          'fine': data['fine'] ?? fine,
+          'isPaid': data['isPaid'] ?? false,
+        });
+
+        // Kirim notifikasi ke pengguna
+        try {
+          final userId = data['userId'] as String;
+          final bookId = data['bookId'] as String;
+
+          // Ambil data buku untuk notifikasi
+          final bookDoc = await _booksRef.doc(bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            final bookTitle = bookData['title'] as String;
+
+            // Kirim notifikasi (pastikan ref.read sudah tersedia)
+            final notificationService = _ref.read(notificationServiceProvider);
+            await notificationService.createNotificationForUser(
+              userId: userId,
+              title: 'Buku Terlambat',
+              body:
+                  'Buku "$bookTitle" telah melewati tenggat waktu pengembalian. Denda: Rp ${fine.toStringAsFixed(0)}',
+              type: NotificationType.overdue,
+              data: {
+                'borrowId': doc.id,
+                'bookId': bookId,
+                'fine': fine.toStringAsFixed(0),
+              },
+            );
+          }
+        } catch (notifError) {
+          print('Error sending overdue notification: $notifError');
+        }
+      }
+
+      // Commit perubahan
+      await batch.commit();
+      print('Updated ${overdueQuery.docs.length} overdue books');
+    } catch (e) {
+      print('Error checking overdue books: $e');
+    }
+  }
+
+  Stream<List<BorrowModel>> getPendingReturnBorrows() {
+    return _borrowsRef
+        .where('status', isEqualTo: 'pendingReturn')
+        .orderBy('returnRequestDate', descending: true)
+        .snapshots()
+        .asyncMap((snapshot) async {
+      // Implementasi sama seperti getPendingBorrows
+      final borrows = <BorrowModel>[];
+      // Kode fetch data dll
+      return borrows;
+    });
+  }
+
+// Di BorrowRepository
+  Future<void> confirmReturn(String borrowId) async {
+    final adminId = currentUserId;
+    if (adminId == null) {
+      throw Exception('Admin tidak ditemukan');
+    }
+
+    // Use transaction properly with all reads first
+    try {
+      // Get all necessary documents first
+      final borrowDocSnapshot = await _borrowsRef.doc(borrowId).get();
+      if (!borrowDocSnapshot.exists) {
+        throw Exception('Data peminjaman tidak ditemukan');
+      }
+
+      final borrowData = borrowDocSnapshot.data() as Map<String, dynamic>;
+      final bookId = borrowData['bookId'] as String;
+      final userId = borrowData['userId'] as String;
+      final dueDate = (borrowData['dueDate'] as Timestamp).toDate();
+
+      // Get user document
+      final userDocSnapshot = await _usersRef.doc(userId).get();
+      if (!userDocSnapshot.exists) {
+        throw Exception('User tidak ditemukan');
+      }
+
+      // Get book document
+      final bookDocSnapshot = await _booksRef.doc(bookId).get();
+      if (!bookDocSnapshot.exists) {
+        throw Exception('Buku tidak ditemukan');
+      }
+
+      // Calculate fine if returned late
+      double fine = 0.0;
+      final now = DateTime.now();
+      final bool isLate = now.isAfter(dueDate);
+
+      if (isLate) {
+        // Normalisasi untuk perhitungan hari yang lebih akurat
+        final DateTime normalizedDueDate =
+            DateTime(dueDate.year, dueDate.month, dueDate.day);
+        final DateTime normalizedNow = DateTime(now.year, now.month, now.day);
+
+        // Calculate days late
+        final daysLate = normalizedNow.difference(normalizedDueDate).inDays;
+        final int effectiveDaysLate = daysLate > 0 ? daysLate : 1;
+
+        // Fine per day (e.g., Rp 2.000 per day)
+        fine = effectiveDaysLate * 2000;
+      }
+
+      // Now start transaction with all data already fetched
+      await _firestore.runTransaction((transaction) async {
+        // Update borrow document
+        transaction.update(_borrowsRef.doc(borrowId), {
+          'returnDate': now,
+          'status': isLate ? 'overdue' : 'returned',
+          'fine': fine,
+          'isPaid': fine <= 0, // Mark as paid if no fine
+          'confirmedReturnBy': adminId,
+          'confirmReturnDate': now,
+        });
+
+        // Update borrowed books list
+        final userData = userDocSnapshot.data() as Map<String, dynamic>;
+        final borrowedBooks =
+            List<String>.from(userData['borrowedBooks'] ?? []);
+        borrowedBooks.remove(bookId);
+        transaction
+            .update(_usersRef.doc(userId), {'borrowedBooks': borrowedBooks});
+
+        // Update user fine amount if there's a fine
+        if (fine > 0) {
+          final currentFine = (userData['fineAmount'] ?? 0.0) as double;
+          transaction.update(
+              _usersRef.doc(userId), {'fineAmount': currentFine + fine});
+        }
+
+        // Update book available count
+        final bookData = bookDocSnapshot.data() as Map<String, dynamic>;
+        final availableStock = (bookData['availableStock'] ?? 0) as int;
+        transaction.update(
+            _booksRef.doc(bookId), {'availableStock': availableStock + 1});
+      });
+
+      // Send notification to user after transaction succeeds
+      try {
+        final notificationService = _ref.read(notificationServiceProvider);
+        final bookData = bookDocSnapshot.data() as Map<String, dynamic>;
+        final bookTitle = bookData['title'] as String;
+
+        await notificationService.createNotificationForUser(
+          userId: userId,
+          title: 'Buku Berhasil Dikembalikan',
+          body: 'Buku "$bookTitle" telah berhasil dikembalikan.',
+          type: isLate
+              ? NotificationType.bookReturnedLate
+              : NotificationType.bookReturned,
+          data: {
+            'borrowId': borrowId,
+            'bookId': bookId,
+            'fine': fine.toString(),
+          },
+        );
+      } catch (notifError) {
+        print('Error sending return notification: $notifError');
+      }
+    } catch (e) {
+      print("Error confirming return: $e");
+      throw Exception('Gagal mengonfirmasi pengembalian buku: ${e.toString()}');
     }
   }
 
@@ -243,6 +476,8 @@ class BorrowRepository {
         'status': 'active',
         'confirmDate': DateTime.now(),
         'confirmedBy': adminId,
+        'borrowDate': DateTime.now(), // Set borrow date to now
+        'dueDate': DateTime.now().add(const Duration(days: 7)), // 7 days due
       });
 
       // 9. Update book stock
@@ -258,15 +493,98 @@ class BorrowRepository {
   }
 
 // Tambahkan method returnBook
+//   Future<void> returnBook(String borrowId) async {
+//     final userId = currentUserId;
+//     if (userId == null) {
+//       throw Exception('User tidak ditemukan');
+//     }
+
+//     try {
+//       // Get borrow document first
+//       final borrowDoc = await _borrowsRef.doc(borrowId).get();
+//       if (!borrowDoc.exists) {
+//         throw Exception('Data peminjaman tidak ditemukan');
+//       }
+
+//       final borrowData = borrowDoc.data() as Map<String, dynamic>;
+//       final bookId = borrowData['bookId'] as String;
+//       final dueDate = (borrowData['dueDate'] as Timestamp).toDate();
+
+//       // Calculate fine if returned late
+//       double fine = 0.0;
+//       final now = DateTime.now();
+
+// // Normalisasi untuk perhitungan hari yang lebih akurat
+//       final DateTime normalizedDueDate =
+//           DateTime(dueDate.year, dueDate.month, dueDate.day);
+//       final DateTime normalizedNow = DateTime(now.year, now.month, now.day);
+//       final bool isLate = normalizedNow.isAfter(normalizedDueDate);
+
+//       if (isLate) {
+//         // Calculate days late (minimal 1 hari jika terlambat)
+//         final daysLate = normalizedNow.difference(normalizedDueDate).inDays;
+//         final int effectiveDaysLate = daysLate > 0 ? daysLate : 1;
+
+//         // Fine per day (e.g., Rp 2.000 per day)
+//         fine = effectiveDaysLate * 2000;
+//       }
+
+//       // Use transaction for atomic update
+//       await _firestore.runTransaction((transaction) async {
+//         // 1. Update borrow document
+//         transaction.update(_borrowsRef.doc(borrowId), {
+//           'returnDate': now,
+//           'status': isLate ? 'overdue' : 'returned',
+//           'fine': fine,
+//           'isPaid': fine <= 0, // Mark as paid if no fine
+//         });
+
+//         // 2. Get user document
+//         final userDoc = await transaction.get(_usersRef.doc(userId));
+//         if (!userDoc.exists) {
+//           throw Exception('User tidak ditemukan');
+//         }
+
+//         // 3. Update borrowed books list
+//         final userData = userDoc.data() as Map<String, dynamic>;
+//         final borrowedBooks =
+//             List<String>.from(userData['borrowedBooks'] ?? []);
+//         borrowedBooks.remove(bookId);
+//         transaction
+//             .update(_usersRef.doc(userId), {'borrowedBooks': borrowedBooks});
+
+//         // 4. Update user fine amount if there's a fine
+//         if (fine > 0) {
+//           final currentFine = (userData['fineAmount'] ?? 0.0) as double;
+//           transaction.update(
+//               _usersRef.doc(userId), {'fineAmount': currentFine + fine});
+//         }
+
+//         // 5. Update book available count
+//         final bookDoc = await transaction.get(_booksRef.doc(bookId));
+//         if (bookDoc.exists) {
+//           final bookData = bookDoc.data() as Map<String, dynamic>;
+//           final availableStock = (bookData['availableStock'] ?? 0) as int;
+//           transaction.update(
+//               _booksRef.doc(bookId), {'availableStock': availableStock + 1});
+//         }
+//       });
+//     } catch (e) {
+//       print("Error returning book: $e");
+//       throw Exception('Gagal mengembalikan buku: ${e.toString()}');
+//     }
+//   }
+
+// Di BorrowRepository
   Future<void> returnBook(String borrowId) async {
     final userId = currentUserId;
     if (userId == null) {
       throw Exception('User tidak ditemukan');
     }
 
-    return _firestore.runTransaction((transaction) async {
-      // 1. Get borrow document
-      final borrowDoc = await transaction.get(_borrowsRef.doc(borrowId));
+    try {
+      // Read operations first
+      final borrowDoc = await _borrowsRef.doc(borrowId).get();
       if (!borrowDoc.exists) {
         throw Exception('Data peminjaman tidak ditemukan');
       }
@@ -274,76 +592,47 @@ class BorrowRepository {
       final borrowData = borrowDoc.data() as Map<String, dynamic>;
       final bookId = borrowData['bookId'] as String;
       final status = borrowData['status'] as String;
-      final borrowUserId = borrowData['userId'] as String;
 
-      // 2. Verify borrowing status is active
-      if (status != 'active') {
-        throw Exception('Buku tidak dalam status dipinjam');
+      // Check if the status is active
+      if (status != 'active' && status != 'overdue') {
+        throw Exception('Buku tidak dalam status yang dapat dikembalikan');
       }
 
-      // 3. Verify the current user is the borrower or an admin (implementation of admin check could be added here)
-      if (borrowUserId != userId) {
-        // For now, just check if borrower is same as current user
-        throw Exception(
-            'Anda tidak memiliki akses untuk mengembalikan buku ini');
-      }
-
-      // 4. Get book document
-      final bookDoc = await transaction.get(_booksRef.doc(bookId));
-      if (!bookDoc.exists) {
-        throw Exception('Buku tidak ditemukan');
-      }
-
-      final bookData = bookDoc.data() as Map<String, dynamic>;
-      final availableStock = bookData['availableStock'] as int;
-
-      // 5. Get user document
-      final userDoc = await transaction.get(_usersRef.doc(borrowUserId));
-      if (!userDoc.exists) {
-        throw Exception('User tidak ditemukan');
-      }
-
-      // 6. Get user's borrowed books
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final borrowedBooks = List<String>.from(userData['borrowedBooks'] ?? []);
-
-      // 7. Remove book from borrowedBooks
-      if (!borrowedBooks.contains(bookId)) {
-        throw Exception('Buku tidak ada dalam daftar peminjaman');
-      }
-      borrowedBooks.remove(bookId);
-
-      // 8. Check if return is overdue
-      final dueDate = (borrowData['dueDate'] as Timestamp).toDate();
-      final now = DateTime.now();
-      final isOverdue = now.isAfter(dueDate);
-
-      // 9. Calculate fine if overdue
-      double? fine;
-      if (isOverdue) {
-        // Calculate days overdue
-        final daysOverdue = now.difference(dueDate).inDays;
-        // Fine calculation: 1000 per day
-        fine = daysOverdue * 1000.0;
-      }
-
-      // 10. Update borrow document
-      transaction.update(_borrowsRef.doc(borrowId), {
-        'status': isOverdue ? 'overdue' : 'returned',
-        'returnDate': now,
-        'fine': fine,
-        'isPaid':
-            fine == null, // If there's no fine, mark as paid automatically
+      // Update status to pending_return instead of directly returned
+      await _borrowsRef.doc(borrowId).update({
+        'returnRequestDate': DateTime.now(),
+        'status': 'pendingReturn',
+        'returnedBy': userId,
       });
 
-      // 11. Update book stock
-      transaction.update(
-          _booksRef.doc(bookId), {'availableStock': availableStock + 1});
+      // Notify admin/librarian through notification system
+      try {
+        final bookDoc = await _booksRef.doc(bookId).get();
+        if (bookDoc.exists) {
+          final bookData = bookDoc.data() as Map<String, dynamic>;
+          final bookTitle = bookData['title'] as String;
 
-      // 12. Update user's borrowed books
-      transaction.update(
-          _usersRef.doc(borrowUserId), {'borrowedBooks': borrowedBooks});
-    });
+          // Send notification to admins (if you have a notification system for admins)
+          final notificationService = _ref.read(notificationServiceProvider);
+          await notificationService.createNotificationForAdmins(
+            title: 'Permintaan Pengembalian Buku',
+            body: 'Pengguna ingin mengembalikan buku: "$bookTitle"',
+            type: NotificationType.bookReturnRequest,
+            data: {
+              'borrowId': borrowId,
+              'bookId': bookId,
+              'userId': userId,
+            },
+          );
+        }
+      } catch (notifError) {
+        print('Error sending return request notification: $notifError');
+        // Continue even if notification fails
+      }
+    } catch (e) {
+      print("Error returning book: $e");
+      throw Exception('Gagal meminta pengembalian buku: ${e.toString()}');
+    }
   }
 
   // Reject borrow request by librarian/admin
@@ -507,5 +796,5 @@ class BorrowRepository {
 
 //  Digunakan untuk provider yang mengakses repository ini
 final borrowRepositoryProvider = Provider<BorrowRepository>((ref) {
-  return BorrowRepository();
+  return BorrowRepository(ref);
 });

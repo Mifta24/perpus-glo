@@ -121,11 +121,26 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
     final bool isOverdue = borrow.status == BorrowStatus.overdue;
     final bool isPending = borrow.status == BorrowStatus.pending;
     final bool hasReturned = borrow.returnDate != null;
-    final bool needsPayment =
-        borrow.fine != null && borrow.fine! > 0 && !borrow.isPaid;
+    final bool isPendingReturn = borrow.status == BorrowStatus.pendingReturn;
 
-    // Cek jika terlambat (borrow date + 7 hari < now)
-    final bool isLate = DateTime.now().difference(borrow.borrowDate).inDays > 7;
+// Tambahkan metode baru untuk cek apakah tanggal sudah lewat
+    bool _isDatePassed(DateTime dateTime) {
+      final DateTime now = DateTime.now();
+      final DateTime normalizedDate =
+          DateTime(dateTime.year, dateTime.month, dateTime.day);
+      final DateTime normalizedNow = DateTime(now.year, now.month, now.day);
+      return normalizedNow.isAfter(normalizedDate);
+    }
+
+    // Cek jika terlambat (jatuh tempo sudah lewat dari hari ini)
+    final bool isLate =
+        !hasReturned && !isPending && _isDatePassed(borrow.dueDate);
+
+    // Cek jika perlu pembayaran:
+    // 1. Ada denda (fine != null && fine > 0) ATAU
+    // 2. Buku belum dikembalikan dan sudah lewat jatuh tempo
+    final bool needsPayment = (!borrow.isPaid && isLate) ||
+        (borrow.fine != null && borrow.fine! > 0 && !borrow.isPaid);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -154,17 +169,224 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                 ),
               ),
             ),
+            // Book info - TAMBAHKAN INI
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Book cover
+                  if (borrow.bookCover != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        borrow.bookCover!,
+                        width: 60,
+                        height: 90,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 60,
+                            height: 90,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.book, color: Colors.grey),
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 60,
+                      height: 90,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.book, color: Colors.grey),
+                    ),
 
+                  const SizedBox(width: 16),
+
+                  // Book details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          borrow.bookTitle ?? 'Unknown Book',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        if (borrow.booksAuthor != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              borrow.booksAuthor!,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 8),
+
+                        // Dates
+                        Row(
+                          children: [
+                            const Icon(Icons.date_range, size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Tanggal pinjam: ${dateFormat.format(borrow.borrowDate)}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.event_available,
+                              size: 14,
+                              color: borrow.dueDate.isBefore(DateTime.now()) &&
+                                      !hasReturned
+                                  ? Colors.red
+                                  : null,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Jatuh tempo: ${dateFormat.format(borrow.dueDate)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color:
+                                    borrow.dueDate.isBefore(DateTime.now()) &&
+                                            !hasReturned
+                                        ? Colors.red
+                                        : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (isLate)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              'TERLAMBAT',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        // Status pembayaran
+                        if (borrow.fine != null && borrow.fine! > 0)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: borrow.isPaid
+                                  ? Colors.green.shade100
+                                  : Colors.orange.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                  color: borrow.isPaid
+                                      ? Colors.green.shade200
+                                      : Colors.orange.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  borrow.isPaid
+                                      ? Icons.check_circle
+                                      : Icons.account_balance_wallet,
+                                  size: 14,
+                                  color: borrow.isPaid
+                                      ? Colors.green
+                                      : Colors.orange.shade700,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    borrow.isPaid
+                                        ? 'Denda Rp ${borrow.fine!.toStringAsFixed(0)} sudah dibayar'
+                                        : 'Denda Rp ${borrow.fine!.toStringAsFixed(0)} belum dibayar',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: borrow.isPaid
+                                          ? Colors.green
+                                          : Colors.orange.shade700,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             // Action buttons
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (isPendingReturn)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.teal.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.autorenew, color: Colors.teal),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Permintaan Pengembalian',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.teal,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Menunggu konfirmasi pengembalian dari pustakawan.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.teal.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   // Tombol kembalikan hanya muncul jika:
                   // 1. Belum dikembalikan
                   // 2. Status bukan pending
-                  if (!hasReturned && !isPending)
+                  if (!hasReturned && !isPending && !isLate && !isPendingReturn)
                     ElevatedButton(
                       onPressed: () {
                         _showReturnConfirmation(borrow.id);
@@ -184,7 +406,17 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                       padding: const EdgeInsets.only(top: 8.0),
                       child: ElevatedButton(
                         onPressed: () {
-                          _showPaymentDialog(borrow.id, borrow.fine!);
+                          // Tentukan jumlah denda: jika sudah ada nilai denda, gunakan itu
+                          // Jika belum ada nilai denda (keterlambatan baru), gunakan perhitungan default
+                          final double fineAmount =
+                              borrow.fine ?? _calculateDefaultFine(borrow);
+
+                          // _showPaymentDialog(borrow.id, borrow.fine!);
+                          // Riderect to payment page
+
+                          context.push(
+                            '/payment/${borrow.id}?amount=${fineAmount.toStringAsFixed(0)}',
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange,
@@ -199,7 +431,7 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
-                        'Sudah ${DateTime.now().difference(borrow.borrowDate).inDays} hari dipinjam, harap segera dikembalikan untuk menghindari denda.',
+                        'Sudah ${_getDaysLate(borrow.dueDate)} hari dipinjam, harap segera dikembalikan untuk menghindari denda.',
                         style: TextStyle(
                           color: Colors.red.shade700,
                           fontSize: 12,
@@ -296,6 +528,33 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
         ),
       ),
     );
+  }
+
+  // Tambahkan helper method untuk menghitung jumlah denda default
+  double _calculateDefaultFine(BorrowModel borrow) {
+    // Hitung hari keterlambatan
+    final int daysLate = _getDaysLate(borrow.dueDate);
+
+    // Misalnya, denda Rp 2.000 per hari keterlambatan
+    const double finePerDay = 2000;
+    return daysLate * finePerDay;
+  }
+
+// Helper method untuk menghitung hari keterlambatan
+  int _getDaysLate(DateTime dueDate) {
+    final DateTime now = DateTime.now();
+
+    // Normalisasi kedua waktu ke tengah malam untuk perhitungan hari yang lebih akurat
+    final DateTime normalizedDueDate =
+        DateTime(dueDate.year, dueDate.month, dueDate.day);
+    final DateTime normalizedNow = DateTime(now.year, now.month, now.day);
+
+    // Hitung perbedaan hari
+    final int daysDifference =
+        normalizedNow.difference(normalizedDueDate).inDays;
+
+    // Pastikan hasilnya minimal 1 jika sudah melewati jatuh tempo
+    return daysDifference > 0 ? daysDifference : 1;
   }
 
   Future<void> _processPayment(String borrowId, String method) async {

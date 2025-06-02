@@ -200,57 +200,58 @@ class NotificationService {
     await _notificationsRef.doc(notificationId).delete();
   }
 
- // Schedule reminder notification for book due date
-Future<void> scheduleReturnReminder({
-  required String borrowId,
-  required String bookTitle,
-  required DateTime dueDate,
-}) async {
-  try {
-    // Schedule reminder 1 day before due date
-    final reminderDate = dueDate.subtract(const Duration(days: 1));
+  // Schedule reminder notification for book due date
+  Future<void> scheduleReturnReminder({
+    required String borrowId,
+    required String bookTitle,
+    required DateTime dueDate,
+  }) async {
+    try {
+      // Schedule reminder 1 day before due date
+      final reminderDate = dueDate.subtract(const Duration(days: 1));
 
-    // Check if reminder date is in the future
-    if (reminderDate.isAfter(DateTime.now())) {
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          id: borrowId.hashCode,
-          channelKey: 'reminder_channel',
+      // Check if reminder date is in the future
+      if (reminderDate.isAfter(DateTime.now())) {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: borrowId.hashCode,
+            channelKey: 'reminder_channel',
+            title: 'Pengingat Pengembalian Buku',
+            body: 'Buku "$bookTitle" harus dikembalikan besok',
+            notificationLayout: NotificationLayout.Default,
+            category: NotificationCategory.Reminder,
+            payload: {
+              'borrowId': borrowId,
+            },
+          ),
+          schedule: NotificationCalendar(
+            year: reminderDate.year,
+            month: reminderDate.month,
+            day: reminderDate.day,
+            hour: reminderDate.hour,
+            minute: reminderDate.minute,
+            second: 0,
+            millisecond: 0,
+            allowWhileIdle: true,
+          ),
+        );
+
+        // Also create a Firestore notification that will be displayed in the app
+        await createNotification(
           title: 'Pengingat Pengembalian Buku',
           body: 'Buku "$bookTitle" harus dikembalikan besok',
-          notificationLayout: NotificationLayout.Default,
-          category: NotificationCategory.Reminder,
-          payload: {
+          type: models.NotificationType
+              .returnReminder, // Ubah dari reminder ke returnReminder
+          data: {
             'borrowId': borrowId,
+            'scheduledFor': reminderDate.toIso8601String(),
           },
-        ),
-        schedule: NotificationCalendar(
-          year: reminderDate.year,
-          month: reminderDate.month,
-          day: reminderDate.day,
-          hour: reminderDate.hour,
-          minute: reminderDate.minute,
-          second: 0,
-          millisecond: 0,
-          allowWhileIdle: true,
-        ),
-      );
-
-      // Also create a Firestore notification that will be displayed in the app
-      await createNotification(
-        title: 'Pengingat Pengembalian Buku',
-        body: 'Buku "$bookTitle" harus dikembalikan besok',
-        type: models.NotificationType.returnReminder, // Ubah dari reminder ke returnReminder
-        data: {
-          'borrowId': borrowId,
-          'scheduledFor': reminderDate.toIso8601String(),
-        },
-      );
+        );
+      }
+    } catch (e) {
+      debugPrint('Error scheduling reminder: $e');
     }
-  } catch (e) {
-    debugPrint('Error scheduling reminder: $e');
   }
-}
 
   // Cancel scheduled notification
   Future<void> cancelScheduledNotification(int notificationId) async {
@@ -275,6 +276,50 @@ Future<void> scheduleReturnReminder({
         'testData': 'Ini adalah data pengujian',
       },
     );
+  }
+
+  // Di NotificationService, tambahkan:
+  Future<void> scheduleReturnReminders() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    // Ambil semua buku yang dipinjam user
+    final borrowDocs = await _firestore
+        .collection('borrows')
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: 'active')
+        .get();
+
+    for (final doc in borrowDocs.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final dueDate = (data['dueDate'] as Timestamp).toDate();
+      final bookId = data['bookId'] as String;
+
+      // Cek jika buku akan jatuh tempo dalam 2 hari atau kurang
+      final now = DateTime.now();
+      final daysUntilDue = dueDate.difference(now).inDays;
+
+      if (daysUntilDue <= 2 && daysUntilDue >= 0) {
+        // Ambil info buku
+        final bookDoc = await _firestore.collection('books').doc(bookId).get();
+        if (bookDoc.exists) {
+          final bookTitle = bookDoc.data()?['title'] as String?;
+
+          // Kirim notifikasi pengingat
+          await createNotificationForUser(
+              userId: userId,
+              title: 'Pengingat Pengembalian',
+              body:
+                  'Buku "${bookTitle ?? 'Unknown'}" harus dikembalikan dalam $daysUntilDue hari',
+              type: models.NotificationType.returnReminder,
+              data: {
+                'borrowId': doc.id,
+                'bookId': bookId,
+                'dueDate': dueDate.millisecondsSinceEpoch.toString(),
+              });
+        }
+      }
+    }
   }
 
   // Buat notifikasi untuk user tertentu
