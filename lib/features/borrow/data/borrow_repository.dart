@@ -94,6 +94,62 @@ class BorrowRepository {
     });
   }
 
+  Stream<List<BorrowModel>> getAllBorrows() {
+  // Admin should see all borrows
+  print('Getting all borrows...');
+  
+  return _borrowsRef
+      .orderBy('requestDate', descending: true)
+      .snapshots()
+      .asyncMap((snapshot) async {
+        print('Fetched ${snapshot.docs.length} borrows');
+        
+        final List<BorrowModel> borrows = [];
+        
+        for (final doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          print('Document ID: ${doc.id}, Status: ${data['status']}');
+          
+          // Buat model
+          final borrowModel = BorrowModel.fromJson({
+            'id': doc.id,
+            ...data,
+          });
+          
+          // Tambahkan info buku dan user
+          try {
+            final bookDoc = await _booksRef.doc(borrowModel.bookId).get();
+            if (bookDoc.exists) {
+              final bookData = bookDoc.data() as Map<String, dynamic>;
+              final borrowWithBookInfo = borrowModel.copyWith(
+                bookTitle: bookData['title'] as String?,
+                bookCover: bookData['coverUrl'] as String?,
+                // booksAuthor: bookData['author'] as String?,
+              );
+              
+              // Fetch user info
+              final userDoc = await _usersRef.doc(borrowModel.userId).get();
+              if (userDoc.exists) {
+                final userData = userDoc.data() as Map<String, dynamic>;
+                borrows.add(borrowWithBookInfo.copyWith(
+                  userName: userData['name'] as String?,
+                ));
+              } else {
+                borrows.add(borrowWithBookInfo);
+              }
+            } else {
+              borrows.add(borrowModel);
+            }
+          } catch (e) {
+            print('Error fetching details: $e');
+            borrows.add(borrowModel);
+          }
+        }
+        
+        return borrows;
+      });
+}
+
   // getActiveBorrows
   Stream<List<BorrowModel>> getActiveBorrows() {
     return _borrowsRef
@@ -289,15 +345,67 @@ class BorrowRepository {
     }
   }
 
+// Di borrow_repository.dart
   Stream<List<BorrowModel>> getPendingReturnBorrows() {
+    // Debug untuk melihat jika fungsi dipanggil
+    print('Getting pending return borrows...');
+
     return _borrowsRef
-        .where('status', isEqualTo: 'pendingReturn')
+        .where('status',
+            isEqualTo: 'pendingReturn') // Pastikan string persis sama
         .orderBy('returnRequestDate', descending: true)
         .snapshots()
         .asyncMap((snapshot) async {
-      // Implementasi sama seperti getPendingBorrows
-      final borrows = <BorrowModel>[];
-      // Kode fetch data dll
+      // Debug untuk melihat jumlah dokumen
+      print('Fetched ${snapshot.docs.length} pending return borrows');
+
+      final List<BorrowModel> borrows = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        // Debug status yang diterima dari database
+        print('Borrow ID: ${doc.id}, Status: ${data['status']}');
+
+        // Buat model dengan ID dokumen sebagai bagian dari data
+        final borrowJson = {
+          'id': doc.id,
+          ...data,
+        };
+
+        // Buat model dasar
+        BorrowModel borrowModel = BorrowModel.fromJson(borrowJson);
+
+        // Tambahkan informasi buku
+        try {
+          final bookDoc = await _booksRef.doc(borrowModel.bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            borrowModel = borrowModel.copyWith(
+              bookTitle: bookData['title'] as String?,
+              bookCover: bookData['coverUrl'] as String?,
+              // booksAuthor: bookData['author'] as String?,
+            );
+          }
+        } catch (e) {
+          print('Error fetching book details: $e');
+        }
+
+        // Tambahkan informasi user
+        try {
+          final userDoc = await _usersRef.doc(borrowModel.userId).get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>;
+            borrowModel = borrowModel.copyWith(
+              userName: userData['name'] as String?,
+            );
+          }
+        } catch (e) {
+          print('Error fetching user details: $e');
+        }
+
+        borrows.add(borrowModel);
+      }
+
       return borrows;
     });
   }

@@ -178,6 +178,8 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
 
       // Refresh data
       ref.invalidate(pendingReturnBorrowsProvider);
+      ref.invalidate(userBorrowHistoryProvider);
+      ref.invalidate(activeBorrowsProvider);
 
       state = const AsyncValue.data(null);
       return true;
@@ -198,6 +200,12 @@ final pendingReturnBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
 final checkOverdueBooksProvider = FutureProvider<void>((ref) async {
   final repository = ref.watch(borrowRepositoryProvider);
   await repository.checkOverdueBooks();
+});
+
+// Di borrow_provider.dart
+final allBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
+  final borrowRepository = ref.watch(borrowRepositoryProvider);
+  return borrowRepository.getAllBorrows();
 });
 
 final borrowControllerProvider =
