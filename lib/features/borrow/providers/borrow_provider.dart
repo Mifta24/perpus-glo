@@ -191,6 +191,12 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
 }
 
 // Di borrow_provider.dart
+final debugOverdueCheckProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final repository = ref.watch(borrowRepositoryProvider);
+  return repository.debugCheckOverdueBooks();
+});
+
+// Di borrow_provider.dart
 final pendingReturnBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
   final repository = ref.watch(borrowRepositoryProvider);
   return repository.getPendingReturnBorrows();

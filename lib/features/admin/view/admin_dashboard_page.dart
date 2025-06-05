@@ -248,6 +248,13 @@ class AdminDashboardPage extends ConsumerWidget {
                   color: Colors.purple,
                   onTap: () => context.push('/admin/categories'),
                 ),
+                // Di AdminDashboardPage
+                ListTile(
+                  title: const Text('Debug Overdue Books'),
+                  subtitle: const Text('Check overdue books calculation'),
+                  leading: const Icon(Icons.bug_report),
+                  onTap: () => context.push('/debug-overdue'),
+                ),
               ],
             ),
 

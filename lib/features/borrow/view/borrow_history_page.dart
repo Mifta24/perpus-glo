@@ -134,7 +134,9 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
 
     // Cek jika terlambat (jatuh tempo sudah lewat dari hari ini)
     final bool isLate =
-        !hasReturned && !isPending && _isDatePassed(borrow.dueDate);
+        !hasReturned && !isPending && _isDatePassed(borrow.dueDate) ||
+            borrow.status == BorrowStatus.overdue;
+    ;
 
     // Cek jika perlu pembayaran:
     // 1. Ada denda (fine != null && fine > 0) ATAU

@@ -38,6 +38,7 @@ class BorrowRepository {
       final List<BorrowModel> borrows = [];
       final now = DateTime.now();
 
+      // Di method getUserBorrowHistory()
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
@@ -49,7 +50,7 @@ class BorrowRepository {
             final daysLate = now.difference(dueDate).inDays;
             final fine = daysLate > 0 ? daysLate * 2000.0 : 2000.0;
 
-            // Update document (gunakan async operation untuk tidak menghambat UI)
+            // Update document
             _borrowsRef.doc(doc.id).update({
               'status': 'overdue',
               'fine': data['fine'] ?? fine,
@@ -95,60 +96,60 @@ class BorrowRepository {
   }
 
   Stream<List<BorrowModel>> getAllBorrows() {
-  // Admin should see all borrows
-  print('Getting all borrows...');
-  
-  return _borrowsRef
-      .orderBy('requestDate', descending: true)
-      .snapshots()
-      .asyncMap((snapshot) async {
-        print('Fetched ${snapshot.docs.length} borrows');
-        
-        final List<BorrowModel> borrows = [];
-        
-        for (final doc in snapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          print('Document ID: ${doc.id}, Status: ${data['status']}');
-          
-          // Buat model
-          final borrowModel = BorrowModel.fromJson({
-            'id': doc.id,
-            ...data,
-          });
-          
-          // Tambahkan info buku dan user
-          try {
-            final bookDoc = await _booksRef.doc(borrowModel.bookId).get();
-            if (bookDoc.exists) {
-              final bookData = bookDoc.data() as Map<String, dynamic>;
-              final borrowWithBookInfo = borrowModel.copyWith(
-                bookTitle: bookData['title'] as String?,
-                bookCover: bookData['coverUrl'] as String?,
-                // booksAuthor: bookData['author'] as String?,
-              );
-              
-              // Fetch user info
-              final userDoc = await _usersRef.doc(borrowModel.userId).get();
-              if (userDoc.exists) {
-                final userData = userDoc.data() as Map<String, dynamic>;
-                borrows.add(borrowWithBookInfo.copyWith(
-                  userName: userData['name'] as String?,
-                ));
-              } else {
-                borrows.add(borrowWithBookInfo);
-              }
+    // Admin should see all borrows
+    print('Getting all borrows...');
+
+    return _borrowsRef
+        .orderBy('requestDate', descending: true)
+        .snapshots()
+        .asyncMap((snapshot) async {
+      print('Fetched ${snapshot.docs.length} borrows');
+
+      final List<BorrowModel> borrows = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        print('Document ID: ${doc.id}, Status: ${data['status']}');
+
+        // Buat model
+        final borrowModel = BorrowModel.fromJson({
+          'id': doc.id,
+          ...data,
+        });
+
+        // Tambahkan info buku dan user
+        try {
+          final bookDoc = await _booksRef.doc(borrowModel.bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            final borrowWithBookInfo = borrowModel.copyWith(
+              bookTitle: bookData['title'] as String?,
+              bookCover: bookData['coverUrl'] as String?,
+              // booksAuthor: bookData['author'] as String?,
+            );
+
+            // Fetch user info
+            final userDoc = await _usersRef.doc(borrowModel.userId).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              borrows.add(borrowWithBookInfo.copyWith(
+                userName: userData['name'] as String?,
+              ));
             } else {
-              borrows.add(borrowModel);
+              borrows.add(borrowWithBookInfo);
             }
-          } catch (e) {
-            print('Error fetching details: $e');
+          } else {
             borrows.add(borrowModel);
           }
+        } catch (e) {
+          print('Error fetching details: $e');
+          borrows.add(borrowModel);
         }
-        
-        return borrows;
-      });
-}
+      }
+
+      return borrows;
+    });
+  }
 
   // getActiveBorrows
   Stream<List<BorrowModel>> getActiveBorrows() {
@@ -899,6 +900,72 @@ class BorrowRepository {
         .get();
 
     return snapshot.docs.length;
+  }
+
+  // Debug method untuk memeriksa buku terlambat
+  Future<List<Map<String, dynamic>>> debugCheckOverdueBooks() async {
+    final now = DateTime.now();
+    final results = <Map<String, dynamic>>[];
+
+    try {
+      // 1. Cek peminjaman aktif yang sudah lewat tanggal jatuh tempo
+      final overdueQuery = await _borrowsRef
+          .where('status', isEqualTo: 'active')
+          .where('dueDate', isLessThan: Timestamp.fromDate(now))
+          .get();
+
+      print('=== OVERDUE CHECK RESULTS ===');
+      print('Found ${overdueQuery.docs.length} overdue books');
+
+      for (final doc in overdueQuery.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final dueDate = (data['dueDate'] as Timestamp).toDate();
+        final daysLate = now.difference(dueDate).inDays;
+        final calculatedFine = daysLate > 0 ? daysLate * 2000.0 : 2000.0;
+
+        final bookDoc = await _booksRef.doc(data['bookId'] as String).get();
+        final bookTitle = bookDoc.exists
+            ? (bookDoc.data() as Map<String, dynamic>)['title']
+            : 'Unknown';
+
+        final result = {
+          'borrowId': doc.id,
+          'bookId': data['bookId'],
+          'bookTitle': bookTitle,
+          'userId': data['userId'],
+          'dueDate': dueDate,
+          'daysLate': daysLate,
+          'calculatedFine': calculatedFine,
+          'currentStatus': data['status'],
+          'currentFine': data['fine'] ?? 0.0,
+        };
+
+        results.add(result);
+        print(
+            'Borrow: ${doc.id}, Book: $bookTitle, Days Late: $daysLate, Fine: $calculatedFine');
+      }
+
+      print('=== END OF OVERDUE CHECK ===');
+      return results;
+    } catch (e) {
+      print('Error in debug check: $e');
+      return [];
+    }
+  }
+
+  // Di file borrow_repository.dart
+  Future<void> updateBorrowStatusToOverdue(String borrowId, double fine) async {
+    try {
+      await _borrowsRef.doc(borrowId).update({
+        'status': 'overdue',
+        'fine': fine,
+        'isPaid': false,
+      });
+      print('Successfully updated borrow $borrowId to overdue with fine $fine');
+    } catch (e) {
+      print('Error updating borrow status: $e');
+      throw Exception('Failed to update status: $e');
+    }
   }
 }
 

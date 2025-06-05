@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:perpusglo/features/borrow/data/borrow_repository.dart';
 import 'package:perpusglo/features/borrow/model/borrow_model.dart';
+import 'package:perpusglo/features/notification/model/notification_model.dart';
+import 'package:perpusglo/features/notification/providers/notification_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../common/widgets/loading_indicator.dart';
@@ -69,26 +71,115 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     }
   }
 
+  // Perbaikan di PaymentPage
   void _completePayment() async {
-    if (_payment == null) return;
-
-    final paymentMethod = _getPaymentMethodName();
-
-    final success = await ref
-        .read(paymentControllerProvider.notifier)
-        .completePayment(_payment!.id, paymentMethod);
-
-    if (success && mounted) {
+    if (_payment == null) {
+      print('Payment is null, cannot complete');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Pembayaran berhasil!'),
-          backgroundColor: Colors.green,
+          content: Text('Data pembayaran tidak ditemukan'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final paymentMethod = _getPaymentMethodName();
+    print('Selected payment method: $paymentMethod');
+    print('Payment ID: ${_payment!.id}');
+    print('Borrow ID: ${widget.fineId}');
+
+    try {
+      // Tampilkan loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Dialog(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text("Memproses pembayaran..."),
+              ],
+            ),
+          ),
         ),
       );
 
-      // Navigate back to borrow history
+      print('Calling completePayment with ID: ${_payment!.id}');
+      final success = await ref
+          .read(paymentControllerProvider.notifier)
+          .completePayment(_payment!.id, paymentMethod);
+      print('completePayment returned: $success');
+
+      // Tutup dialog loading
+      if (mounted) Navigator.of(context).pop();
+
+      if (success && mounted) {
+        print('Payment successful, sending notification');
+        // Tambahkan notifikasi ke admin bahwa user telah membayar denda
+        try {
+          final notificationService = ref.read(notificationServiceProvider);
+          await notificationService.createNotificationForAdmins(
+            title: 'Denda Telah Dibayar',
+            body:
+                'User telah membayar denda untuk buku "${_borrowDetail?.bookTitle ?? 'Unknown Book'}"',
+            type: NotificationType.payment,
+            data: {
+              'borrowId': widget.fineId,
+              'paymentId': _payment!.id,
+              'amount': widget.amount.toString(),
+            },
+          );
+          print('Notification sent successfully');
+        } catch (e) {
+          print('Error sending notification: $e');
+          // Lanjutkan meskipun notifikasi gagal
+        }
+
+        // Tampilkan pesan sukses
+        print('Showing success message');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Pembayaran berhasil! Silakan tunggu konfirmasi pengembalian dari pustakawan.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigasi kembali ke halaman riwayat peminjaman
+        print('Navigating back to borrow-history');
+        if (mounted) {
+          context.go('/borrow-history');
+        }
+      } else {
+        print('Payment failed or component not mounted');
+        if (mounted) {
+          // Tampilkan pesan error jika gagal
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal melakukan pembayaran. Silakan coba lagi.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Exception caught in _completePayment: $e');
+      // Tutup dialog loading jika terjadi exception
+      if (mounted) Navigator.of(context).pop();
+
+      // Tampilkan pesan error
       if (mounted) {
-        context.go('/borrow-history');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -517,12 +608,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildBankInfo('Bank BNI', '1234567890', 'Perpustakaan GLO'),
-                const Divider(height: 24),
-                _buildBankInfo('Bank BRI', '9876543210', 'Perpustakaan GLO'),
-                const Divider(height: 24),
-                _buildBankInfo(
-                    'Bank Mandiri', '5432167890', 'Perpustakaan GLO'),
+                _buildBankInfo('Bank Mandiri', '1234567890', 'Perpustakaan GLO'),
+                // const Divider(height: 24),
+                // _buildBankInfo('Bank BRI', '9876543210', 'Perpustakaan GLO'),
+                // const Divider(height: 24),
+                // _buildBankInfo(
+                //     'Bank Mandiri', '5432167890', 'Perpustakaan GLO'),
               ],
             ),
           ),

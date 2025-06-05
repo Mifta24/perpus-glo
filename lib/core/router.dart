@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:perpusglo/features/borrow/view/debug_overdue_page.dart';
 import 'package:perpusglo/features/categories/view/category_detail_page.dart';
 import '../features/auth/view/login_page.dart';
 import '../features/auth/view/register_page.dart';
@@ -117,7 +118,7 @@ final GoRouter router = GoRouter(
       path: '/settings',
       builder: (context, state) => const SettingsPage(),
     ),
-    
+
     // Admin Routes - BARU
     GoRoute(
       path: '/admin/login',
@@ -150,15 +151,21 @@ final GoRouter router = GoRouter(
       path: '/admin/users',
       builder: (context, state) => const UserManagementPage(),
     ),
+
+    // Di router.dart
+    GoRoute(
+      path: '/debug-overdue',
+      builder: (context, state) => const DebugOverduePage(),
+    ),
   ],
   // Redirect to login if not authenticated
   redirect: (context, state) {
     final isLoggedIn = FirebaseAuth.instance.currentUser != null;
     final isAdminRoute = state.matchedLocation.startsWith('/admin');
-    
+
     // Kecualikan admin/login dari redirect
     final nonAuthRoutes = ['/login', '/register', '/admin/login'];
-    
+
     // Admin route logic
     if (isAdminRoute && state.matchedLocation != '/admin/login') {
       // Untuk memeriksa apakah user adalah admin, kita perlu mengecek state usernya
@@ -166,9 +173,9 @@ final GoRouter router = GoRouter(
       if (!isLoggedIn) {
         return '/admin/login';
       }
-      
+
       // Sebenarnya di sini kita perlu cek role user
-      // Namun karena keterbatasan akses state di router, 
+      // Namun karena keterbatasan akses state di router,
       // kita biarkan pengecekan role dilakukan di halaman admin
     }
 
@@ -180,7 +187,9 @@ final GoRouter router = GoRouter(
       }
 
       // If logged in and trying to access login/register, redirect to home
-      if (isLoggedIn && (state.matchedLocation == '/login' || state.matchedLocation == '/register')) {
+      if (isLoggedIn &&
+          (state.matchedLocation == '/login' ||
+              state.matchedLocation == '/register')) {
         return '/home';
       }
     }
