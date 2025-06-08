@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'features/categories/providers/category_provider.dart'; // Tambahkan impo
 import 'features/notification/controller/notification_controller.dart';
 import 'features/notification/providers/notification_provider.dart';
 import 'features/borrow/providers/borrow_provider.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,12 +28,23 @@ void main() async {
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
+  void _setupPeriodicChecks(WidgetRef ref) {
+    // Check overdue books when app starts
+    ref.read(checkOverdueBooksProvider);
+
+    // Schedule periodic checks (setiap 6 jam)
+    Timer.periodic(const Duration(hours: 6), (timer) {
+      print('Running scheduled overdue check');
+      ref.refresh(checkOverdueBooksProvider);
+    });
+  }
+
   void _checkOverdueBooks(WidgetRef ref) {
     ref.read(checkOverdueBooksProvider);
 
-      // Schedule return reminders
-  final notificationService = ref.read(notificationServiceProvider);
-  notificationService.scheduleReturnReminders();
+    // Schedule return reminders
+    final notificationService = ref.read(notificationServiceProvider);
+    notificationService.scheduleReturnReminders();
   }
 
   void _setupNotificationHandlers(WidgetRef ref) {
@@ -54,22 +68,11 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Setup notification handlers
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupNotificationHandlers(ref);
+      _checkOverdueBooks(ref);
+      _setupPeriodicChecks(ref); // Tambahkan ini
     });
-
-    // Initialize default categories when app starts
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(categoryControllerProvider.notifier)
-          .initializeDefaultCategories();
-    });
-
-    // Check for overdue books when app starts
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _checkOverdueBooks(ref);
-  });
 
     return MaterialApp.router(
       title: 'Perpus GLO',

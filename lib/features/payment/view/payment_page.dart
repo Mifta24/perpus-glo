@@ -154,6 +154,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         print('Navigating back to borrow-history');
         if (mounted) {
           context.go('/borrow-history');
+          
         }
       } else {
         print('Payment failed or component not mounted');

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perpusglo/features/auth/providers/auth_provider.dart';
 import '../data/borrow_repository.dart';
@@ -54,8 +55,18 @@ final isBookBorrowedProvider =
 
 // Provider for active borrows all users
 final activeBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
-  final repository = ref.watch(borrowRepositoryProvider);
-  return repository.getActiveBorrows();
+  // Ambil currentUser dari provider yang tepat
+  final auth = FirebaseAuth.instance;
+  final userId = auth.currentUser?.uid;
+
+  // Atau gunakan currentUserProvider jika sudah didefinisikan
+  // final user = ref.watch(currentUserProvider).valueOrNull;
+  // final userId = user?.id;
+
+  if (userId == null) return Stream.value([]);
+
+  final borrowRepository = ref.watch(borrowRepositoryProvider);
+  return borrowRepository.getUserActiveBorrows(userId);
 });
 
 // Provider untuk jumlah peminjaman aktif
@@ -191,7 +202,8 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
 }
 
 // Di borrow_provider.dart
-final debugOverdueCheckProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final debugOverdueCheckProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final repository = ref.watch(borrowRepositoryProvider);
   return repository.debugCheckOverdueBooks();
 });
@@ -200,6 +212,12 @@ final debugOverdueCheckProvider = FutureProvider<List<Map<String, dynamic>>>((re
 final pendingReturnBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
   final repository = ref.watch(borrowRepositoryProvider);
   return repository.getPendingReturnBorrows();
+});
+
+// Di borrow_provider.dart
+final fixReturnedStatusProvider = FutureProvider<int>((ref) async {
+  final repository = ref.read(borrowRepositoryProvider);
+  return await repository.fixInconsistentReturnedStatus();
 });
 
 // Overdue books check provider

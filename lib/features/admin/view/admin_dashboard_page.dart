@@ -329,6 +329,63 @@ class AdminDashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             _buildRecentActivityList(context, ref),
+            // Di AdminDashboardPage
+            ElevatedButton(
+              onPressed: () async {
+                // Tampilkan dialog konfirmasi terlebih dahulu
+                final shouldFix = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Perbaiki Status Pengembalian'),
+                    content: const Text('Ini akan memperbaiki status peminjaman yang sudah dikembalikan tapi statusnya tidak konsisten. Lanjutkan?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('BATAL'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('PERBAIKI'),
+                      ),
+                    ],
+                  ),
+                );
+                
+                if (shouldFix != true) return;
+                
+                // Tampilkan loading
+                showDialog(
+                  context: context, 
+                  barrierDismissible: false,
+                  builder: (context) => const AlertDialog(
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Memperbaiki status...'),
+                      ],
+                    ),
+                  ),
+                );
+                
+                // Jalankan perbaikan
+                final count = await ref.read(fixReturnedStatusProvider.future);
+                
+                // Tutup dialog loading
+                Navigator.pop(context);
+                
+                // Tampilkan hasil
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Berhasil memperbaiki $count peminjaman')),
+                );
+                
+                // Refresh data
+                ref.refresh(allBorrowsProvider);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('PERBAIKI STATUS PENGEMBALIAN'),
+            ),
           ],
         ),
       ),

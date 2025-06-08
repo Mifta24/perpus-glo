@@ -43,8 +43,6 @@ final booksCountProvider = FutureProvider<int>((ref) async {
   return repository.getBooksCount();
 });
 
-
-
 class BookController extends StateNotifier<AsyncValue<void>> {
   final BookRepository _repository;
 
@@ -140,8 +138,8 @@ final bookControllerProvider =
 
 // Provider for popular books
 final popularBooksProvider = StreamProvider<List<BookModel>>((ref) {
-  final repository = ref.watch(bookRepositoryProvider);
-  return repository.getBooksByPopularity(limit: 10);
+  final bookRepository = ref.watch(bookRepositoryProvider);
+  return bookRepository.getPopularBooks();
 });
 
 // Provider for latest books

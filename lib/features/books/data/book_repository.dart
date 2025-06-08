@@ -167,24 +167,79 @@ class BookRepository {
     });
   }
 
-  Stream<List<BookModel>> getBooksByPopularity({required int limit}) {
-    return _booksRef
-        .orderBy('borrowCount', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return BookModel.fromJson({
-          'id': doc.id,
-          ...doc.data() as Map<String, dynamic>,
+  // Di book_repository.dart
+  Stream<List<BookModel>> getPopularBooks({int limit = 10}) {
+    print('Getting popular books without borrowCount field'); // Debug log
+
+    // Metode dengan menghitung dari koleksi borrows
+    return _firestore
+        .collection('borrows')
+        // Ambil semua peminjaman yang dikonfirmasi (status active, returned, overdue, pendingReturn)
+        .where('status',
+            whereIn: ['active', 'returned', 'overdue', 'pendingReturn'])
+        .get()
+        .asStream()
+        .asyncMap((snapshot) async {
+          print(
+              'Found ${snapshot.docs.length} total borrow records'); // Debug log
+
+          // Hitung frekuensi bookId
+          final Map<String, int> bookFrequency = {};
+          for (final doc in snapshot.docs) {
+            final bookId = doc.data()['bookId'] as String?;
+            if (bookId != null) {
+              bookFrequency[bookId] = (bookFrequency[bookId] ?? 0) + 1;
+            }
+          }
+
+          print(
+              'Book frequency map created with ${bookFrequency.length} entries'); // Debug log
+
+          // Daftar dari ids yang paling populer
+          final popularBookIds = bookFrequency.entries
+              .sorted((a, b) => b.value.compareTo(a.value))
+              .take(limit)
+              .map((e) => e.key)
+              .toList();
+
+          print('Popular book IDs: $popularBookIds'); // Debug log
+
+          // Jika tidak ada buku populer, kembalikan list kosong
+          if (popularBookIds.isEmpty) {
+            print('No popular books found'); // Debug log
+            return <BookModel>[];
+          }
+
+          // Ambil detail buku dari popularBookIds
+          final booksSnapshot = await _booksRef
+              .where(FieldPath.documentId, whereIn: popularBookIds)
+              .get();
+
+          print(
+              'Retrieved ${booksSnapshot.docs.length} popular books'); // Debug log
+
+          // Konversi ke BookModel
+          final books = booksSnapshot.docs
+              .map((doc) => BookModel.fromJson({
+                    'id': doc.id,
+                    ...doc.data() as Map<String, dynamic>,
+                  }))
+              .toList();
+
+          // Urutkan sesuai dengan popularitas
+          books.sort((a, b) {
+            final indexA = popularBookIds.indexOf(a.id!);
+            final indexB = popularBookIds.indexOf(b.id!);
+            return indexA.compareTo(indexB);
+          });
+
+          return books;
         });
-      }).toList();
-    });
   }
 
   Stream<List<BookModel>> getLatestBooks({required int limit}) {
     return _booksRef
-        .orderBy('addedAt', descending: true)
+        .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
@@ -225,6 +280,15 @@ class BookRepository {
   // Delete book for admin
   Future<void> deleteBook(String bookId) async {
     await _booksRef.doc(bookId).delete();
+  }
+}
+
+// Di extensions.dart atau file utility lainnya
+extension IterableExtension<T> on Iterable<T> {
+  List<T> sorted(Comparator<T> compare) {
+    final List<T> list = toList();
+    list.sort(compare);
+    return list;
   }
 }
 

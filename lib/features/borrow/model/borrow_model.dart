@@ -59,7 +59,7 @@ class BorrowModel {
   final DateTime dueDate;
   final DateTime? returnDate;
   final BorrowStatus status;
-  final double? fine;  // Denda yang dikenakan jika ada
+  final double? fine; // Denda yang dikenakan jika ada
   final bool isPaid;
 
   // Fields for request system
@@ -228,10 +228,19 @@ class BorrowModel {
     final DateTime endDate = returnDate ?? DateTime.now();
     if (!endDate.isAfter(dueDate)) return 0;
 
-    // Hitung selisih hari
-    final difference = endDate.difference(dueDate).inDays;
+    // Normalisasi tanggal untuk perhitungan yang lebih akurat
+    final DateTime normalizedDueDate =
+        DateTime(dueDate.year, dueDate.month, dueDate.day);
+    final DateTime normalizedEndDate =
+        DateTime(endDate.year, endDate.month, endDate.day);
 
-    // Rumus denda: Rp 1.000 per hari terlambat
-    return difference * 1000;
+    // Hitung selisih hari
+    final difference = normalizedEndDate.difference(normalizedDueDate).inDays;
+
+    // Minimal 1 hari jika terlambat
+    final effectiveDays = difference > 0 ? difference : 1;
+
+    // Rumus denda: Rp 2.000 per hari terlambat (konsisten dengan kode lain)
+    return effectiveDays * 2000;
   }
 }

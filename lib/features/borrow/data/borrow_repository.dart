@@ -38,30 +38,75 @@ class BorrowRepository {
       final List<BorrowModel> borrows = [];
       final now = DateTime.now();
 
-      // Di method getUserBorrowHistory()
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
         // Check if book is overdue but status hasn't been updated yet
-        if (data['status'] == 'active') {
+        if (data['status'] == 'active' && data['returnDate'] == null) {
           final dueDate = (data['dueDate'] as Timestamp).toDate();
           if (now.isAfter(dueDate)) {
-            // Update status ke overdue dan tambahkan denda
-            final daysLate = now.difference(dueDate).inDays;
-            final fine = daysLate > 0 ? daysLate * 2000.0 : 2000.0;
+            // Normalisasi tanggal untuk perhitungan hari yang lebih akurat
+            final DateTime normalizedDueDate =
+                DateTime(dueDate.year, dueDate.month, dueDate.day);
+            final DateTime normalizedNow =
+                DateTime(now.year, now.month, now.day);
+
+            // Hitung hari terlambat
+            final daysLate = normalizedNow.difference(normalizedDueDate).inDays;
+
+            // Pastikan minimal 1 hari jika sudah lewat tenggat
+            final effectiveDaysLate = daysLate > 0 ? daysLate : 1;
+
+            // Denda per hari = Rp 2.000
+            final fine = effectiveDaysLate * 2000.0;
+
+            print(
+                'Detected overdue book in history: ${doc.id}, Days late: $effectiveDaysLate, Fine: $fine');
 
             // Update document
-            _borrowsRef.doc(doc.id).update({
+            await _borrowsRef.doc(doc.id).update({
               'status': 'overdue',
-              'fine': data['fine'] ?? fine,
+              'fine': fine,
               'isPaid': false,
             });
 
+            // Update user's total fine
+            final userDoc = await _usersRef.doc(userId).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              final currentFine = _toDouble(userData['fineAmount']);
+              await _usersRef.doc(userId).update({
+                'fineAmount': currentFine + fine,
+              });
+
+              print(
+                  'Updated user $userId fine: $currentFine + $fine = ${currentFine + fine}');
+            }
+
             // Update data lokal untuk UI
             data['status'] = 'overdue';
-            data['fine'] = data['fine'] ?? fine;
+            data['fine'] = fine;
             data['isPaid'] = false;
           }
+        }
+        // TAMBAHAN: Jika buku sudah returned tapi status tidak konsisten, perbaiki
+        else if ((data['status'] == 'overdue' ||
+                data['status'] == 'pendingReturn') &&
+            data['returnDate'] != null &&
+            data['confirmReturnDate'] != null) {
+          // Buku sudah dikembalikan dan dikonfirmasi, tapi status tidak returned
+          print(
+              'Fixing inconsistent status for ${doc.id}: marking as returned');
+          await _borrowsRef.doc(doc.id).update({
+            'status': 'returned',
+            'isReturned': true,
+            'isReturnLocked': true,
+          });
+
+          // Update lokal data
+          data['status'] = 'returned';
+          data['isReturned'] = true;
+          data['isReturnLocked'] = true;
         }
       }
 
@@ -87,6 +132,49 @@ class BorrowRepository {
           }
         } catch (e) {
           // If book fetch fails, still add the borrow record
+          borrows.add(borrowModel);
+        }
+      }
+
+      return borrows;
+    });
+  }
+
+  Stream<List<BorrowModel>> getUserActiveBorrows(String userId) {
+    print('Getting active borrows for user: $userId'); // Debug log
+
+    return _borrowsRef
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: 'active')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      print('Found ${snapshot.docs.length} active borrows'); // Debug log
+
+      final List<BorrowModel> borrows = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final borrowModel = BorrowModel.fromJson({
+          'id': doc.id,
+          ...data,
+        });
+
+        // Tambahkan info buku
+        try {
+          final bookDoc = await _booksRef.doc(borrowModel.bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            final bookWithInfo = borrowModel.copyWith(
+              bookTitle: bookData['title'] as String?,
+              bookCover: bookData['coverUrl'] as String?,
+              // booksAuthor: bookData['author'] as String?,
+            );
+            borrows.add(bookWithInfo);
+          } else {
+            borrows.add(borrowModel);
+          }
+        } catch (e) {
+          print('Error fetching book info: $e');
           borrows.add(borrowModel);
         }
       }
@@ -275,42 +363,101 @@ class BorrowRepository {
   }
 
 // Di BorrowRepository, tambahkan metode baru
+  // Di borrow_repository.dart, perbaiki metode checkOverdueBooks
   Future<void> checkOverdueBooks() async {
     try {
       final now = DateTime.now();
+      print('Running checkOverdueBooks at ${now.toString()}');
 
       // Ambil semua peminjaman dengan status 'active' dan dueDate < now
       final overdueQuery = await _borrowsRef
           .where('status', isEqualTo: 'active')
           .where('dueDate', isLessThan: Timestamp.fromDate(now))
+          .where('isPaid', isEqualTo: false)
+          .where('returnDate', isNull: true)
+          .where('confirmReturnDate',
+              isNull:
+                  true) // TAMBAHAN: Pastikan buku belum dikonfirmasi kembali
+          .where('isReturned',
+              isNotEqualTo:
+                  true) // TAMBAHAN: Pastikan tidak ditandai sebagai dikembalikan
           .get();
 
-      // Jika tidak ada yang terlambat, keluar
+      print('Found ${overdueQuery.docs.length} overdue books');
+
+      // Jika tidak ada yang terlambat, selesai
       if (overdueQuery.docs.isEmpty) return;
 
       // Gunakan batch untuk update banyak dokumen sekaligus
       final batch = _firestore.batch();
+      final userFinesToUpdate = <String, double>{};
 
       for (final doc in overdueQuery.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final dueDate = (data['dueDate'] as Timestamp).toDate();
+        final userId = data['userId'] as String;
 
-        // Hitung denda (Rp 2.000 per hari terlambat)
-        final daysLate = now.difference(dueDate).inDays;
-        final fine =
-            daysLate > 0 ? daysLate * 2000.0 : 2000.0; // Minimal 1 hari denda
+        // Normalisasi tanggal untuk perhitungan hari yang lebih akurat
+        final DateTime normalizedDueDate =
+            DateTime(dueDate.year, dueDate.month, dueDate.day);
+        final DateTime normalizedNow = DateTime(now.year, now.month, now.day);
 
-        // Update status menjadi overdue dan tambahkan denda jika belum ada
+        // Hitung hari terlambat
+        final daysLate = normalizedNow.difference(normalizedDueDate).inDays;
+
+        // Pastikan minimal 1 hari jika sudah lewat tenggat
+        final effectiveDaysLate = daysLate > 0 ? daysLate : 1;
+
+        // Denda per hari = Rp 2.000
+        final fine = effectiveDaysLate * 2000.0;
+
+        print(
+            'Book overdue: ${doc.id}, Days late: $effectiveDaysLate, Fine: $fine');
+
+        // Update status menjadi overdue dan tambahkan denda
         batch.update(doc.reference, {
           'status': 'overdue',
-          'fine': data['fine'] ?? fine,
-          'isPaid': data['isPaid'] ?? false,
+          'fine': fine,
+          'isPaid': false,
         });
 
-        // Kirim notifikasi ke pengguna
+        // Tambahkan denda ke total denda user
+        userFinesToUpdate[userId] = (userFinesToUpdate[userId] ?? 0) + fine;
+      }
+
+      // Update denda untuk setiap user yang terlambat
+      for (final entry in userFinesToUpdate.entries) {
+        final userId = entry.key;
+        final additionalFine = entry.value;
+
+        // Ambil data user untuk mendapatkan fineAmount saat ini
+        final userDoc = await _usersRef.doc(userId).get();
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final currentFine = _toDouble(userData['fineAmount']);
+
+          // Update total denda user
+          batch.update(_usersRef.doc(userId), {
+            'fineAmount': currentFine + additionalFine,
+          });
+
+          print(
+              'Updating user $userId fine: $currentFine + $additionalFine = ${currentFine + additionalFine}');
+        }
+      }
+
+      // Commit semua perubahan
+      await batch.commit();
+      print(
+          'Successfully updated ${overdueQuery.docs.length} overdue books and user fines');
+
+      // Kirim notifikasi ke pengguna yang bukunya terlambat
+      for (final doc in overdueQuery.docs) {
         try {
+          final data = doc.data() as Map<String, dynamic>;
           final userId = data['userId'] as String;
           final bookId = data['bookId'] as String;
+          final fine = data['fine'] ?? 0.0;
 
           // Ambil data buku untuk notifikasi
           final bookDoc = await _booksRef.doc(bookId).get();
@@ -318,7 +465,7 @@ class BorrowRepository {
             final bookData = bookDoc.data() as Map<String, dynamic>;
             final bookTitle = bookData['title'] as String;
 
-            // Kirim notifikasi (pastikan ref.read sudah tersedia)
+            // Kirim notifikasi
             final notificationService = _ref.read(notificationServiceProvider);
             await notificationService.createNotificationForUser(
               userId: userId,
@@ -329,18 +476,17 @@ class BorrowRepository {
               data: {
                 'borrowId': doc.id,
                 'bookId': bookId,
-                'fine': fine.toStringAsFixed(0),
+                'fine': fine.toString(),
               },
             );
+
+            print(
+                'Sent overdue notification to user $userId for book $bookTitle');
           }
         } catch (notifError) {
           print('Error sending overdue notification: $notifError');
         }
       }
-
-      // Commit perubahan
-      await batch.commit();
-      print('Updated ${overdueQuery.docs.length} overdue books');
     } catch (e) {
       print('Error checking overdue books: $e');
     }
@@ -411,6 +557,19 @@ class BorrowRepository {
     });
   }
 
+// Helper method untuk konversi nilai ke double
+  double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    try {
+      return double.parse(value.toString());
+    } catch (e) {
+      print('Error converting value to double: $e');
+      return 0.0;
+    }
+  }
+
 // Di BorrowRepository
   Future<void> confirmReturn(String borrowId) async {
     final adminId = currentUserId;
@@ -418,7 +577,6 @@ class BorrowRepository {
       throw Exception('Admin tidak ditemukan');
     }
 
-    // Use transaction properly with all reads first
     try {
       // Get all necessary documents first
       final borrowDocSnapshot = await _borrowsRef.doc(borrowId).get();
@@ -459,7 +617,7 @@ class BorrowRepository {
         final int effectiveDaysLate = daysLate > 0 ? daysLate : 1;
 
         // Fine per day (e.g., Rp 2.000 per day)
-        fine = effectiveDaysLate * 2000;
+        fine = effectiveDaysLate * 2000.0;
       }
 
       // Now start transaction with all data already fetched
@@ -467,11 +625,17 @@ class BorrowRepository {
         // Update borrow document
         transaction.update(_borrowsRef.doc(borrowId), {
           'returnDate': now,
-          'status': isLate ? 'overdue' : 'returned',
+          // PERBAIKAN: Selalu tandai sebagai returned jika sudah dikonfirmasi admin
+          'status': 'returned', // Selalu returned setelah dikonfirmasi
           'fine': fine,
-          'isPaid': fine <= 0, // Mark as paid if no fine
+          'isPaid':
+              fine <= 0 || borrowData['isPaid'] == true, // Respek flag isPaid
           'confirmedReturnBy': adminId,
           'confirmReturnDate': now,
+          'isReturned': true,
+          'isReturnLocked': true,
+          // TAMBAHAN: Pastikan tidak dianggap overdue lagi
+          'preventOverdueCheck': true,
         });
 
         // Update borrowed books list
@@ -484,7 +648,25 @@ class BorrowRepository {
 
         // Update user fine amount if there's a fine
         if (fine > 0) {
-          final currentFine = (userData['fineAmount'] ?? 0.0) as double;
+          // PERBAIKAN: Pastikan tipe data konsisten dengan menggunakan toDouble()
+          final userFineAmount = userData['fineAmount'];
+          double currentFine = 0.0;
+
+          // Handle berbagai tipe data yang mungkin muncul
+          if (userFineAmount is int) {
+            currentFine = userFineAmount.toDouble();
+          } else if (userFineAmount is double) {
+            currentFine = userFineAmount;
+          } else if (userFineAmount != null) {
+            // Jika bukan null dan bukan int/double, coba konversi ke double
+            try {
+              currentFine = double.parse(userFineAmount.toString());
+            } catch (e) {
+              print('Error converting fineAmount to double: $e');
+              currentFine = 0.0;
+            }
+          }
+
           transaction.update(
               _usersRef.doc(userId), {'fineAmount': currentFine + fine});
         }
@@ -865,8 +1047,8 @@ class BorrowRepository {
         final userDoc = await _usersRef.doc(userId).get();
         if (userDoc.exists) {
           final userData = userDoc.data() as Map<String, dynamic>;
-          final currentFine = (userData['fineAmount'] ?? 0.0) as double;
-          final borrowFine = (borrowData['fine'] ?? 0.0) as double;
+          final currentFine = _toDouble(userData['fineAmount']);
+          final borrowFine = _toDouble(borrowData['fine']);
 
           // Reduce user's total fine
           if (currentFine > 0 && borrowFine > 0) {
@@ -965,6 +1147,47 @@ class BorrowRepository {
     } catch (e) {
       print('Error updating borrow status: $e');
       throw Exception('Failed to update status: $e');
+    }
+  }
+
+  // Tambahkan metode ini di BorrowRepository
+  Future<int> fixInconsistentReturnedStatus() async {
+    try {
+      // Cari peminjaman dengan returnDate dan confirmReturnDate yang sudah ada tapi status bukan returned
+      final snapshot = await _borrowsRef
+          .where('returnDate', isNull: false)
+          .where('confirmReturnDate', isNull: false)
+          .get();
+
+      int fixedCount = 0;
+      final batch = _firestore.batch();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final status = data['status'] as String?;
+
+        if (status != 'returned') {
+          print(
+              'Fixing inconsistent status for ${doc.id}: ${status} -> returned');
+          batch.update(doc.reference, {
+            'status': 'returned',
+            'isReturned': true,
+            'isReturnLocked': true,
+            'preventOverdueCheck': true,
+          });
+          fixedCount++;
+        }
+      }
+
+      if (fixedCount > 0) {
+        await batch.commit();
+        print('Fixed $fixedCount records');
+      }
+
+      return fixedCount;
+    } catch (e) {
+      print('Error fixing returned status: $e');
+      return 0;
     }
   }
 }
