@@ -27,7 +27,7 @@ class ProfileController extends StateNotifier<AsyncValue<void>> {
   Future<void> updateProfile(UserProfileModel profile) async {
     state = const AsyncValue.loading();
     try {
-      // await _repository.saveUserProfile(profile);
+      await _repository.saveUserProfile(profile);
       
       // Record activity
       await _historyRepository.addActivity(

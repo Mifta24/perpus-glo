@@ -40,18 +40,21 @@ class ProfileRepository {
     });
   }
 
-  // // Create or update user profile
-  // Future<void> saveUserProfile(UserProfileModel profile) async {
-  //   final userId = currentUserId;
-  //   if (userId == null) {
-  //     throw Exception('User tidak ditemukan');
-  //   }
+  // Create or update user profile
+  Future<void> saveUserProfile(UserProfileModel profile) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw Exception('User tidak ditemukan');
+    }
 
-  //   // Ensure the profile ID matches the current user ID
-  //   final updatedProfile = profile.copyWith(id: userId);
+    //   // Ensure the profile ID matches the current user ID
+    final updatedProfile = profile.copyWith(id: userId);
 
-  //   await _usersRef.doc(userId).set(updatedProfile.toJson(), SetOptions(merge: true));
-  // }
+    await _usersRef
+        .doc(userId)
+        .set(updatedProfile.toJson(), SetOptions(merge: true));
+  }
+  
 
   // Update profile picture
   // Future<String> updateProfilePicture(File imageFile, dynamic uploadTask) async {
@@ -227,7 +230,9 @@ class ProfileRepository {
 
   // Update user role (for admin)
   Future<void> updateUserRole(String userId, UserRole role) async {
-    await _usersRef.doc(userId).update({'role': role.toString().split('.').last});
+    await _usersRef
+        .doc(userId)
+        .update({'role': role.toString().split('.').last});
   }
 
   // Deactivate user account (for admin)
@@ -240,18 +245,19 @@ class ProfileRepository {
     await _usersRef.doc(userId).update({'isActive': true});
   }
 
-  Future<void> logAdminAction(String action, String targetId, String? details) async {
-  final userId = currentUserId;
-  if (userId == null) return;
-  
-  await _firestore.collection('adminLogs').add({
-    'adminId': userId,
-    'action': action,
-    'targetId': targetId,
-    'details': details,
-    'timestamp': FieldValue.serverTimestamp(),
-  });
-}
+  Future<void> logAdminAction(
+      String action, String targetId, String? details) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    await _firestore.collection('adminLogs').add({
+      'adminId': userId,
+      'action': action,
+      'targetId': targetId,
+      'details': details,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
 }
 
 // Provider for ProfileRepository
