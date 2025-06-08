@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum PaymentStatus {
-  pending,   // Menunggu pembayaran
+  pending, // Menunggu pembayaran
   completed, // Pembayaran selesai
-  failed,    // Pembayaran gagal
-  cancelled  // Pembayaran dibatalkan
+  failed, // Pembayaran gagal
+  cancelled // Pembayaran dibatalkan
 }
 
 extension PaymentStatusExtension on PaymentStatus {
@@ -32,9 +32,14 @@ class PaymentModel {
   final DateTime? completedAt;
   final String? paymentMethod;
   final String? paymentProofUrl;
-  
+
   // URL untuk QR Code pembayaran (misalnya QRIS)
   final String? paymentQrUrl;
+
+// Tambahkan properti ini di PaymentModel
+  final String? bookId;
+  final String? bookTitle;
+  final String? bookCover;
 
   PaymentModel({
     required this.id,
@@ -47,21 +52,41 @@ class PaymentModel {
     this.paymentMethod,
     this.paymentProofUrl,
     this.paymentQrUrl,
+    this.bookId,
+    this.bookTitle,
+    this.bookCover,
   });
 
   factory PaymentModel.fromJson(Map<String, dynamic> json) {
+    // Konversi status yang lebih aman
+    PaymentStatus getStatus(String? statusStr) {
+      if (statusStr == null) return PaymentStatus.pending;
+
+      try {
+        return PaymentStatus.values.firstWhere(
+          (e) => e.toString().split('.').last == statusStr,
+          orElse: () => PaymentStatus.pending,
+        );
+      } catch (e) {
+        return PaymentStatus.pending;
+      }
+    }
+
     return PaymentModel(
       id: json['id'] as String,
       userId: json['userId'] as String,
       borrowId: json['borrowId'] as String,
-      amount: (json['amount'] as num).toDouble(),
-      status: PaymentStatus.values.firstWhere(
-        (e) => e.toString() == 'PaymentStatus.${json['status']}',
-        orElse: () => PaymentStatus.pending,
-      ),
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
-      completedAt: json['completedAt'] != null 
-          ? (json['completedAt'] as Timestamp).toDate() 
+      amount: (json['amount'] is int)
+          ? (json['amount'] as int).toDouble()
+          : (json['amount'] as num).toDouble(),
+      status: getStatus(json['status'] as String?),
+      createdAt: json['createdAt'] is Timestamp
+          ? (json['createdAt'] as Timestamp).toDate()
+          : DateTime.parse(json['createdAt'].toString()),
+      completedAt: json['completedAt'] != null
+          ? (json['completedAt'] is Timestamp
+              ? (json['completedAt'] as Timestamp).toDate()
+              : DateTime.parse(json['completedAt'].toString()))
           : null,
       paymentMethod: json['paymentMethod'] as String?,
       paymentProofUrl: json['paymentProofUrl'] as String?,
@@ -95,6 +120,9 @@ class PaymentModel {
     String? paymentMethod,
     String? paymentProofUrl,
     String? paymentQrUrl,
+    String? bookId,
+    String? bookTitle,
+    String? bookCover,
   }) {
     return PaymentModel(
       id: id ?? this.id,
@@ -107,6 +135,9 @@ class PaymentModel {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentProofUrl: paymentProofUrl ?? this.paymentProofUrl,
       paymentQrUrl: paymentQrUrl ?? this.paymentQrUrl,
+      bookId: bookId ?? this.bookId,
+      bookTitle: bookTitle ?? this.bookTitle,
+      bookCover: bookCover ?? this.bookCover,
     );
   }
 }

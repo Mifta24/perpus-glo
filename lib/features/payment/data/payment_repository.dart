@@ -73,13 +73,52 @@ class PaymentRepository {
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return PaymentModel.fromJson({
+        .asyncMap((snapshot) async {
+      final List<PaymentModel> payments = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final payment = PaymentModel.fromJson({
           'id': doc.id,
-          ...doc.data() as Map<String, dynamic>,
+          ...data,
         });
-      }).toList();
+
+        // Tambahkan info buku dari peminjaman
+        try {
+          final borrowDoc = await _firestore
+              .collection('borrows')
+              .doc(payment.borrowId)
+              .get();
+          if (borrowDoc.exists) {
+            final borrowData = borrowDoc.data() as Map<String, dynamic>;
+            final bookId = borrowData['bookId'] as String?;
+
+            if (bookId != null) {
+              final bookDoc =
+                  await _firestore.collection('books').doc(bookId).get();
+              if (bookDoc.exists) {
+                final bookData = bookDoc.data() as Map<String, dynamic>;
+
+                // Tambahkan info buku ke model payment
+                final paymentWithBookInfo = payment.copyWith(
+                  bookTitle: bookData['title'] as String?,
+                  bookCover: bookData['coverUrl'] as String?,
+                );
+
+                payments.add(paymentWithBookInfo);
+                continue; // Lanjut ke pembayaran berikutnya
+              }
+            }
+          }
+        } catch (e) {
+          print('Error getting book info: $e');
+        }
+
+        // Jika gagal mendapatkan info buku, tambahkan payment tanpa info tambahan
+        payments.add(payment);
+      }
+
+      return payments;
     });
   }
 

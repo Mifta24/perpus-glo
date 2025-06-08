@@ -15,6 +15,15 @@ class ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(userProfileProvider);
+// Tambahkan provider untuk cek pembayaran pending
+    // final pendingPaymentsProvider = StreamProvider<int>((ref) {
+    //   final repository = ref.watch(paymentRepositoryProvider);
+    //   return repository.getUserPayments().map((payments) =>
+    //       payments.where((p) => p.status == PaymentStatus.pending).length);
+    // });
+
+// Di ProfilePage
+    // final pendingPaymentsCount = ref.watch(pendingPaymentsProvider).value ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -46,9 +55,9 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildProfileContent(BuildContext context, WidgetRef ref, UserProfileModel profile) {
+  Widget _buildProfileContent(
+      BuildContext context, WidgetRef ref, UserProfileModel profile) {
     return SingleChildScrollView(
-      
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -56,7 +65,7 @@ class ProfilePage extends ConsumerWidget {
           // Profile picture
           _buildProfilePicture(context, ref, profile),
           const SizedBox(height: 16),
-          
+
           // User name
           Text(
             profile.name,
@@ -65,7 +74,7 @@ class ProfilePage extends ConsumerWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          
+
           // User email
           Text(
             profile.email,
@@ -74,7 +83,7 @@ class ProfilePage extends ConsumerWidget {
               color: Colors.grey[600],
             ),
           ),
-          
+
           // User role badge
           Container(
             margin: const EdgeInsets.symmetric(vertical: 8),
@@ -91,38 +100,43 @@ class ProfilePage extends ConsumerWidget {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Information cards
           _buildInfoCard('Informasi Kontak', [
-            _buildInfoRow(Icons.phone, 'Nomor Telepon', profile.phoneNumber ?? 'Belum diatur'),
-            _buildInfoRow(Icons.location_on, 'Alamat', profile.address ?? 'Belum diatur'),
+            _buildInfoRow(Icons.phone, 'Nomor Telepon',
+                profile.phoneNumber ?? 'Belum diatur'),
+            _buildInfoRow(
+                Icons.location_on, 'Alamat', profile.address ?? 'Belum diatur'),
           ]),
-          
+
           const SizedBox(height: 16),
-          
+
           // Account information card
           _buildInfoCard('Informasi Akun', [
-            _buildInfoRow(Icons.calendar_today, 'Terdaftar Pada', 
+            _buildInfoRow(Icons.calendar_today, 'Terdaftar Pada',
                 _formatDate(profile.createdAt)),
             if (profile.lastLoginAt != null)
-              _buildInfoRow(Icons.access_time, 'Login Terakhir', 
+              _buildInfoRow(Icons.access_time, 'Login Terakhir',
                   _formatDate(profile.lastLoginAt!)),
           ]),
-          
+
           const SizedBox(height: 24),
-          
+
           // Action buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16, // jarak horizontal antar tombol
+            runSpacing: 12, // jarak vertikal antar baris
             children: [
               ElevatedButton(
                 onPressed: () {
                   context.push('/profile/edit');
                 },
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -133,56 +147,75 @@ class ProfilePage extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
-            OutlinedButton(
-              onPressed: () {
-                context.push('/history');
-              },
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              OutlinedButton(
+                onPressed: () {
+                  context.push('/history');
+                },
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.history),
+                    SizedBox(width: 8),
+                    Text('Riwayat Aktivitas'),
+                  ],
+                ),
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.history),
-                  SizedBox(width: 8),
-                  Text('Riwayat Aktivitas'),
-                ],
+              OutlinedButton(
+                onPressed: () {
+                  context.push('/payment-history');
+                },
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.payment),
+                    SizedBox(width: 8),
+                    Text('Riwayat Pembayaran'),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        // Admin Dashboard button (only shown for admin/librarian)
-        if (profile.role == UserRole.admin || profile.role == UserRole.librarian)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                context.go('/admin');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _getRoleColor(profile.role),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              icon: const Icon(Icons.admin_panel_settings),
-              label: const Text(
-                'Dashboard Admin', 
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Admin Dashboard button (only shown for admin/librarian)
+          if (profile.role == UserRole.admin ||
+              profile.role == UserRole.librarian)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  context.go('/admin');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _getRoleColor(profile.role),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: const Icon(Icons.admin_panel_settings),
+                label: const Text(
+                  'Dashboard Admin',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
-  Widget _buildProfilePicture(BuildContext context, WidgetRef ref, UserProfileModel profile) {
+  Widget _buildProfilePicture(
+      BuildContext context, WidgetRef ref, UserProfileModel profile) {
     final profileController = ref.watch(profileControllerProvider);
 
     return Stack(
@@ -192,17 +225,17 @@ class ProfilePage extends ConsumerWidget {
         CircleAvatar(
           radius: 60,
           backgroundColor: Colors.grey[300],
-          backgroundImage: profile.photoUrl != null
-              ? NetworkImage(profile.photoUrl!)
-              : null,
+          // backgroundImage:
+          //     profile.photoUrl != null ? NetworkImage(profile.photoUrl!) : null,
           child: profile.photoUrl == null
               ? Text(
                   _getInitials(profile.name),
-                  style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 36, fontWeight: FontWeight.bold),
                 )
               : null,
         ),
-        
+
         // Edit profile picture button
         // Container(
         //   decoration: BoxDecoration(
@@ -223,7 +256,7 @@ class ProfilePage extends ConsumerWidget {
 
   // Future<void> _changeProfilePicture(BuildContext context, WidgetRef ref) async {
   //   final controller = ref.read(profileControllerProvider.notifier);
-    
+
   //   showModalBottomSheet(
   //     context: context,
   //     builder: (context) => SafeArea(
@@ -261,7 +294,7 @@ class ProfilePage extends ConsumerWidget {
   Future<XFile?> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     return await picker.pickImage(
-      source: source, 
+      source: source,
       maxWidth: 500,
       maxHeight: 500,
       imageQuality: 85,
