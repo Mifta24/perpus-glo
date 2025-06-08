@@ -12,7 +12,6 @@ import 'features/notification/controller/notification_controller.dart';
 import 'features/notification/providers/notification_provider.dart';
 import 'features/borrow/providers/borrow_provider.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -36,6 +35,10 @@ class MyApp extends ConsumerWidget {
     Timer.periodic(const Duration(hours: 6), (timer) {
       print('Running scheduled overdue check');
       ref.refresh(checkOverdueBooksProvider);
+
+      // Juga jalankan pengingat pengembalian
+      final notificationService = ref.read(notificationServiceProvider);
+      notificationService.scheduleReturnReminders();
     });
   }
 
@@ -53,9 +56,8 @@ class MyApp extends ConsumerWidget {
         .actionStream
         .listen((ReceivedAction receivedAction) {
       // Handle notification tap
+      final payload = receivedAction.payload!;
       if (receivedAction.payload != null) {
-        final payload = receivedAction.payload!;
-
         // Example: Navigate based on payload
         if (payload.containsKey('borrowId')) {
           router.push('/borrow/${payload['borrowId']}');

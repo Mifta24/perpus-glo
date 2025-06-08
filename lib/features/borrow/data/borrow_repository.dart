@@ -355,6 +355,46 @@ class BorrowRepository {
       });
 
       print("Berhasil membuat record peminjaman dengan ID: $borrowId");
+
+      // TAMBAHKAN: Notifikasi untuk user setelah peminjaman berhasil dibuat
+      try {
+        // Ambil data buku untuk notifikasi
+        final bookDoc = await _booksRef.doc(bookId).get();
+        if (bookDoc.exists) {
+          final bookData = bookDoc.data() as Map<String, dynamic>;
+          final bookTitle = bookData['title'] as String;
+
+          // Kirim notifikasi ke user
+          final notificationService = _ref.read(notificationServiceProvider);
+          await notificationService.createNotificationForUser(
+            userId: userId,
+            title: 'Permintaan Peminjaman',
+            body:
+                'Permintaan peminjaman untuk buku "$bookTitle" telah dikirim. Menunggu konfirmasi pustakawan.',
+            type: NotificationType.borrowRequest,
+            data: {
+              'borrowId': borrowId,
+              'bookId': bookId,
+            },
+          );
+
+          // Kirim notifikasi ke admin/pustakawan
+          await notificationService.createNotificationForAdmins(
+            title: 'Permintaan Peminjaman Baru',
+            body: 'Ada permintaan peminjaman baru untuk buku "$bookTitle"',
+            type: NotificationType.borrowRequestAdmin,
+            data: {
+              'borrowId': borrowId,
+              'bookId': bookId,
+              'userId': userId,
+            },
+          );
+        }
+      } catch (e) {
+        print('Error sending borrow notification: $e');
+        // Tetap lanjutkan meskipun notifikasi gagal
+      }
+
       return borrowId;
     } catch (e) {
       print("Error saat meminjam buku: $e");
@@ -712,75 +752,125 @@ class BorrowRepository {
     if (adminId == null) {
       throw Exception('Admin tidak ditemukan');
     }
+    String bookTitle = "";
+    try {
+      await _firestore.runTransaction((transaction) async {
+        // 1. Get borrow document
+        final borrowDoc = await transaction.get(_borrowsRef.doc(borrowId));
+        if (!borrowDoc.exists) {
+          throw Exception('Data peminjaman tidak ditemukan');
+        }
 
-    return _firestore.runTransaction((transaction) async {
-      // 1. Get borrow document
-      final borrowDoc = await transaction.get(_borrowsRef.doc(borrowId));
-      if (!borrowDoc.exists) {
-        throw Exception('Data peminjaman tidak ditemukan');
-      }
+        final borrowData = borrowDoc.data() as Map<String, dynamic>;
+        final userId = borrowData['userId'] as String;
+        final bookId = borrowData['bookId'] as String;
+        final status = borrowData['status'] as String;
 
-      final borrowData = borrowDoc.data() as Map<String, dynamic>;
-      final userId = borrowData['userId'] as String;
-      final bookId = borrowData['bookId'] as String;
-      final status = borrowData['status'] as String;
+        // 2. Verify status is pending
+        if (status != 'pending') {
+          throw Exception('Peminjaman sudah dikonfirmasi atau ditolak');
+        }
 
-      // 2. Verify status is pending
-      if (status != 'pending') {
-        throw Exception('Peminjaman sudah dikonfirmasi atau ditolak');
-      }
+        // 3. Get book document
+        final bookDoc = await transaction.get(_booksRef.doc(bookId));
+        if (!bookDoc.exists) {
+          throw Exception('Buku tidak ditemukan');
+        }
 
-      // 3. Get book document
-      final bookDoc = await transaction.get(_booksRef.doc(bookId));
-      if (!bookDoc.exists) {
-        throw Exception('Buku tidak ditemukan');
-      }
+        final bookData = bookDoc.data() as Map<String, dynamic>;
+        final availableStock = bookData['availableStock'] as int;
 
-      final bookData = bookDoc.data() as Map<String, dynamic>;
-      final availableStock = bookData['availableStock'] as int;
+        // 4. Check stock
+        if (availableStock <= 0) {
+          throw Exception('Stok buku tidak tersedia');
+        }
 
-      // 4. Check stock
-      if (availableStock <= 0) {
-        throw Exception('Stok buku tidak tersedia');
-      }
+        // 5. Get user document
+        final userDoc = await transaction.get(_usersRef.doc(userId));
+        if (!userDoc.exists) {
+          throw Exception('User tidak ditemukan');
+        }
 
-      // 5. Get user document
-      final userDoc = await transaction.get(_usersRef.doc(userId));
-      if (!userDoc.exists) {
-        throw Exception('User tidak ditemukan');
-      }
+        // 6. Get user's pending and borrowed books
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final pendingBooks = List<String>.from(userData['pendingBooks'] ?? []);
+        final borrowedBooks =
+            List<String>.from(userData['borrowedBooks'] ?? []);
 
-      // 6. Get user's pending and borrowed books
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final pendingBooks = List<String>.from(userData['pendingBooks'] ?? []);
-      final borrowedBooks = List<String>.from(userData['borrowedBooks'] ?? []);
+        // 7. Move book from pendingBooks to borrowedBooks
+        if (!pendingBooks.contains(bookId)) {
+          throw Exception('Buku tidak dalam daftar permintaan user');
+        }
+        pendingBooks.remove(bookId);
+        borrowedBooks.add(bookId);
 
-      // 7. Move book from pendingBooks to borrowedBooks
-      if (!pendingBooks.contains(bookId)) {
-        throw Exception('Buku tidak dalam daftar permintaan user');
-      }
-      pendingBooks.remove(bookId);
-      borrowedBooks.add(bookId);
+        // 8. Update borrow document
+        transaction.update(_borrowsRef.doc(borrowId), {
+          'status': 'active',
+          'confirmDate': DateTime.now(),
+          'confirmedBy': adminId,
+          'borrowDate': DateTime.now(), // Set borrow date to now
+          'dueDate': DateTime.now().add(const Duration(days: 7)), // 7 days due
+        });
 
-      // 8. Update borrow document
-      transaction.update(_borrowsRef.doc(borrowId), {
-        'status': 'active',
-        'confirmDate': DateTime.now(),
-        'confirmedBy': adminId,
-        'borrowDate': DateTime.now(), // Set borrow date to now
-        'dueDate': DateTime.now().add(const Duration(days: 7)), // 7 days due
+        // 9. Update book stock
+        transaction.update(
+            _booksRef.doc(bookId), {'availableStock': availableStock - 1});
+
+        // 10. Update user's book lists
+        transaction.update(_usersRef.doc(userId), {
+          'pendingBooks': pendingBooks,
+          'borrowedBooks': borrowedBooks,
+        });
+        // TAMBAHKAN: Notifikasi setelah konfirmasi peminjaman
+        try {
+          // Ambil data buku untuk notifikasi
+          final bookDoc = await _booksRef.doc(bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            bookTitle = bookData['title'] as String;
+
+            // Ambil jatuh tempo
+            final borrowDoc = await _borrowsRef.doc(borrowId).get();
+            final borrowData = borrowDoc.data() as Map<String, dynamic>;
+            final dueDate = (borrowData['dueDate'] as Timestamp).toDate();
+
+            // Kirim notifikasi ke peminjam
+            final notificationService = _ref.read(notificationServiceProvider);
+            await notificationService.createNotificationForUser(
+              userId: userId,
+              title: 'Peminjaman Disetujui',
+              body:
+                  'Peminjaman buku "$bookTitle" telah disetujui. Silakan ambil buku di perpustakaan. Jatuh tempo: ${_formatDate(dueDate)}',
+              type: NotificationType.borrowConfirmed,
+              data: {
+                'borrowId': borrowId,
+                'bookId': bookId,
+                'dueDate': dueDate.millisecondsSinceEpoch,
+              },
+            );
+
+            // Jadwalkan pengingat pengembalian satu hari sebelum jatuh tempo
+            final reminderDate = dueDate.subtract(const Duration(days: 1));
+            if (reminderDate.isAfter(DateTime.now())) {
+              await notificationService.scheduleReturnReminder(
+                  borrowId: borrowId, bookTitle: bookTitle, dueDate: dueDate);
+            }
+          }
+        } catch (e) {
+          print('Error sending confirmation notification: $e');
+          // Tetap lanjutkan meskipun notifikasi gagal
+        }
       });
+    } catch (e) {
+      print("Error confirming borrow: $e");
+      throw Exception('Gagal mengonfirmasi peminjaman: ${e.toString()}');
+    }
+  }
 
-      // 9. Update book stock
-      transaction.update(
-          _booksRef.doc(bookId), {'availableStock': availableStock - 1});
-
-      // 10. Update user's book lists
-      transaction.update(_usersRef.doc(userId), {
-        'pendingBooks': pendingBooks,
-        'borrowedBooks': borrowedBooks,
-      });
-    });
+  // Helper untuk format tanggal
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
 // Tambahkan method returnBook
@@ -895,7 +985,36 @@ class BorrowRepository {
         'status': 'pendingReturn',
         'returnedBy': userId,
       });
+// TAMBAHKAN: Notifikasi untuk user
+      try {
+        final borrowDoc = await _borrowsRef.doc(borrowId).get();
+        if (borrowDoc.exists) {
+          final borrowData = borrowDoc.data() as Map<String, dynamic>;
+          final bookId = borrowData['bookId'] as String;
 
+          final bookDoc = await _booksRef.doc(bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            final bookTitle = bookData['title'] as String;
+
+            // Kirim notifikasi ke user
+            final notificationService = _ref.read(notificationServiceProvider);
+            await notificationService.createNotificationForUser(
+              userId: userId,
+              title: 'Permintaan Pengembalian',
+              body:
+                  'Permintaan pengembalian buku "$bookTitle" telah dikirim. Menunggu konfirmasi pustakawan.',
+              type: NotificationType.bookReturnRequest,
+              data: {
+                'borrowId': borrowId,
+                'bookId': bookId,
+              },
+            );
+          }
+        }
+      } catch (e) {
+        print('Error sending return notification: $e');
+      }
       // Notify admin/librarian through notification system
       try {
         final bookDoc = await _booksRef.doc(bookId).get();
@@ -973,6 +1092,37 @@ class BorrowRepository {
 
       // 7. Update user's pending books
       transaction.update(_usersRef.doc(userId), {'pendingBooks': pendingBooks});
+
+      try {
+        // Ambil info yang diperlukan
+        final borrowDoc = await _borrowsRef.doc(borrowId).get();
+        final borrowData = borrowDoc.data() as Map<String, dynamic>;
+        final userId = borrowData['userId'] as String;
+        final bookId = borrowData['bookId'] as String;
+
+        // Ambil info buku
+        final bookDoc = await _booksRef.doc(bookId).get();
+        if (bookDoc.exists) {
+          final bookData = bookDoc.data() as Map<String, dynamic>;
+          final bookTitle = bookData['title'] as String;
+
+          // Kirim notifikasi ke user
+          final notificationService = _ref.read(notificationServiceProvider);
+          await notificationService.createNotificationForUser(
+            userId: userId,
+            title: 'Peminjaman Ditolak',
+            body: 'Peminjaman buku "$bookTitle" ditolak dengan alasan: $reason',
+            type: NotificationType.borrowRejected,
+            data: {
+              'borrowId': borrowId,
+              'bookId': bookId,
+              'reason': reason,
+            },
+          );
+        }
+      } catch (e) {
+        print('Error sending reject notification: $e');
+      }
     });
   }
 
@@ -1033,16 +1183,16 @@ class BorrowRepository {
 
       // Cast data ke Map<String, dynamic> terlebih dahulu
       final borrowData = borrowDoc.data() as Map<String, dynamic>;
-
+      final userId = borrowData['userId'] as String?;
+      final bookId = borrowData['bookId'] as String;
+      final fine = _toDouble(borrowData['fine']);
       // Update the document
       await _borrowsRef.doc(borrowId).update({
         'isPaid': true,
         'paymentMethod': paymentMethod,
         'paymentDate': DateTime.now(),
       });
-
-      // Update user's fineAmount if needed
-      final userId = borrowData['userId'] as String?;
+      // Update user's fine amount  
       if (userId != null) {
         final userDoc = await _usersRef.doc(userId).get();
         if (userDoc.exists) {
@@ -1057,6 +1207,48 @@ class BorrowRepository {
             await _usersRef.doc(userId).update({'fineAmount': newFine});
           }
         }
+      }
+      // TAMBAHKAN: Notifikasi pembayaran denda
+      try {
+        if (userId != null) {
+          // Ambil info buku
+          final bookDoc = await _booksRef.doc(bookId).get();
+          if (bookDoc.exists) {
+            final bookData = bookDoc.data() as Map<String, dynamic>;
+            final bookTitle = bookData['title'] as String;
+
+            // Kirim notifikasi ke user
+            final notificationService = _ref.read(notificationServiceProvider);
+            await notificationService.createNotificationForUser(
+              userId: userId,
+              title: 'Pembayaran Denda Berhasil',
+              body:
+                  'Pembayaran denda sebesar Rp ${fine.toStringAsFixed(0)} untuk buku "$bookTitle" telah berhasil diproses dengan metode $paymentMethod.',
+              type: NotificationType.payment,
+              data: {
+                'borrowId': borrowId,
+                'bookId': bookId,
+                'fine': fine.toString(),
+                'paymentMethod': paymentMethod,
+              },
+            );
+
+            // Kirim notifikasi ke admin bahwa ada pembayaran denda
+            await notificationService.createNotificationForAdmins(
+              title: 'Pembayaran Denda',
+              body:
+                  'User telah membayar denda Rp ${fine.toStringAsFixed(0)} untuk buku "$bookTitle" dan siap dikembalikan.',
+              type: NotificationType.payment,
+              data: {
+                'borrowId': borrowId,
+                'bookId': bookId,
+                'userId': userId,
+              },
+            );
+          }
+        }
+      } catch (e) {
+        print('Error sending payment notification: $e');
       }
     } catch (e) {
       print("Error paying fine: $e");
