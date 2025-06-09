@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
-import '../../core/constants/app_colors.dart';
 
 // loading_indicator.dart digunakan untuk menampilkan
 // indikator pemuatan (loading indicator) di aplikasi.
 class LoadingIndicator extends StatelessWidget {
   final double size;
-  final Color color;
-
+  final Color? color;
+  
   const LoadingIndicator({
-    super.key, 
-    this.size = 24.0,
-    this.color = AppColors.primary,
-  });
+    Key? key, 
+    this.size = 40, 
+    this.color,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: SpinKitFadingCircle(
-        color: color,
-        size: size,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CircularProgressIndicator(
+          color: color ?? Theme.of(context).primaryColor,
+          strokeWidth: 3,
+        ),
       ),
     );
   }

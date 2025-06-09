@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:perpusglo/features/admin/view/categories/admin_categories_page.dart';
+import 'package:perpusglo/features/admin/view/categories/admin_category_books_page.dart';
+import 'package:perpusglo/features/admin/view/history/admin_history_page.dart';
 import 'package:perpusglo/features/borrow/view/debug_overdue_page.dart';
 import 'package:perpusglo/features/categories/view/category_detail_page.dart';
 import '../features/auth/view/login_page.dart';
@@ -151,7 +154,24 @@ final GoRouter router = GoRouter(
       path: '/admin/users',
       builder: (context, state) => const UserManagementPage(),
     ),
+    GoRoute(
+      path: '/admin/history',
+      builder: (context, state) => const AdminHistoryPage(),
+    ),
 
+    // Rute untuk mengelola kategori
+    GoRoute(
+      path: '/admin/categories',
+      builder: (context, state) => const AdminCategoriesPage(),
+    ),
+
+    GoRoute(
+      path: '/admin/categories/:id/books',
+      builder: (context, state) {
+        final categoryId = state.pathParameters['id']!;
+        return AdminCategoryBooksPage(categoryId: categoryId);
+      },
+    ),
     // Di router.dart
     GoRoute(
       path: '/debug-overdue',

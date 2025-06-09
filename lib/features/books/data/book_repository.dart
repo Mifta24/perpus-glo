@@ -24,14 +24,18 @@ class BookRepository {
   }
 
   // Get books by category
-  Stream<List<BookModel>> getBooksByCategory(String category) {
+  Stream<List<BookModel>> getBooksByCategory(String categoryId) {
     return _booksRef
-        .where('category', isEqualTo: category)
+        .where('categoryId', isEqualTo: categoryId)
+        .orderBy('title')
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
-        return BookModel.fromJson(
-            {'id': doc.id, ...doc.data() as Map<String, dynamic>});
+        final data = doc.data() as Map<String, dynamic>;
+        return BookModel.fromJson({
+          'id': doc.id,
+          ...data,
+        });
       }).toList();
     });
   }
