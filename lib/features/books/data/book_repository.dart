@@ -282,8 +282,40 @@ class BookRepository {
   }
 
   // Delete book for admin
-  Future<void> deleteBook(String bookId) async {
-    await _booksRef.doc(bookId).delete();
+  Future<bool> deleteBook(String bookId) async {
+    try {
+      // Pertama, periksa apakah buku masih dipinjam
+      final borrowsRef = _firestore.collection('borrows');
+      final activeBorrows = await borrowsRef
+          .where('bookId', isEqualTo: bookId)
+          .where('status', whereIn: ['active', 'overdue'])
+          .get();
+      
+      // Jika buku masih dipinjam, berikan error
+      if (activeBorrows.docs.isNotEmpty) {
+        throw Exception('Buku ini masih dipinjam oleh pengguna dan tidak dapat dihapus');
+      }
+
+      // Log aktivitas penghapusan buku
+      await _firestore.collection('history').add({
+        'userId': _auth.currentUser?.uid,
+        'activityType': 'deleteBook',
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Menghapus buku dari sistem',
+        'metadata': {
+          'bookId': bookId,
+          // Simpan data buku sebelum dihapus untuk history
+          'bookInfo': await _booksRef.doc(bookId).get().then((doc) => doc.data()),
+        },
+      });
+
+      // Hapus buku
+      await _booksRef.doc(bookId).delete();
+      return true;
+    } catch (e) {
+      print('Error deleting book: $e');
+      rethrow; // Lempar kembali error untuk ditangani di controller
+    }
   }
 }
 

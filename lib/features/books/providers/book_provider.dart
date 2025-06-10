@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/book_repository.dart';
 import '../model/book_model.dart';
@@ -86,6 +87,7 @@ class BookController extends StateNotifier<AsyncValue<void>> {
       return true;
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
+      print('Error in deleteBook: $e');
       return false;
     }
   }
@@ -146,4 +148,16 @@ final popularBooksProvider = StreamProvider<List<BookModel>>((ref) {
 final latestBooksProvider = StreamProvider<List<BookModel>>((ref) {
   final repository = ref.watch(bookRepositoryProvider);
   return repository.getLatestBooks(limit: 10);
+});
+
+// Provider untuk memeriksa apakah buku sedang dalam peminjaman aktif
+final isBookActiveBorrowedProvider = FutureProvider.family<bool, String>((ref, bookId) async {
+  final borrowsRef = FirebaseFirestore.instance.collection('borrows');
+  final snapshot = await borrowsRef
+      .where('bookId', isEqualTo: bookId)
+      .where('status', whereIn: ['active', 'overdue'])
+      .limit(1)
+      .get();
+      
+  return snapshot.docs.isNotEmpty;
 });

@@ -84,7 +84,9 @@ class BookManagementPage extends ConsumerWidget {
           return await _showDeleteConfirmDialog(context, book);
         },
         onDismissed: (direction) {
-          _deleteBook(context, ref, book.id!);
+          if (book.id != null) {
+            _deleteBook(context, ref, book.id!);
+          }
         },
         child: InkWell(
           onTap: () => context.push('/admin/books/edit/${book.id}'),
@@ -227,7 +229,34 @@ class BookManagementPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Hapus Buku'),
-        content: Text('Apakah Anda yakin ingin menghapus buku "${book.title}"?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Apakah Anda yakin ingin menghapus buku "${book.title}"?'),
+            const SizedBox(height: 16),
+            if (book.availableStock < book.totalStock)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Perhatian: ${book.totalStock - book.availableStock} buku sedang dipinjam. Menghapus buku tetap akan menghapus entri dari sistem.',
+                        style: TextStyle(color: Colors.red[700], fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -235,6 +264,7 @@ class BookManagementPage extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('HAPUS'),
           ),
         ],
@@ -243,17 +273,63 @@ class BookManagementPage extends ConsumerWidget {
   }
 
   void _deleteBook(BuildContext context, WidgetRef ref, String bookId) {
-    ref.read(bookControllerProvider.notifier).deleteBook(bookId).then((success) {
-      if (success) {
+    // Tampilkan loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Menghapus buku...'),
+          ],
+        ),
+      ),
+    );
+
+    // Jalankan proses penghapusan
+    ref.read(bookControllerProvider.notifier).deleteBook(bookId).then(
+      (success) {
+        // Tutup dialog loading
+        Navigator.pop(context);
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Buku berhasil dihapus'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal menghapus buku. Coba lagi nanti.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      onError: (error) {
+        // Tutup dialog loading
+        Navigator.pop(context);
+        
+        String errorMessage = 'Gagal menghapus buku';
+        
+        // Check specific error messages
+        if (error.toString().contains('masih dipinjam')) {
+          errorMessage = 'Buku ini masih dipinjam dan tidak dapat dihapus';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Buku berhasil dihapus')),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal menghapus buku')),
-        );
-      }
-    });
+      },
+    );
   }
 
   void _showFilterOptions(BuildContext context, WidgetRef ref) {
