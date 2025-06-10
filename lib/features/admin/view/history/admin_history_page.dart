@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../common/widgets/loading_indicator.dart';
 import '../../../../common/widgets/empty_state.dart';
 import '../../../history/model/activity_model.dart';
@@ -13,10 +14,12 @@ class AdminHistoryPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final allActivitiesAsync = ref.watch(allActivitiesProvider);
     final selectedDateRange = ref.watch(selectedDateRangeProvider);
-    
+    final roleFilter = ref.watch(roleFilterProvider);
+    final typeFilter = ref.watch(activityTypeFilterProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Riwayat Aktivitas'),
+        title: const Text('Riwayat Aktivitas Admin'),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -60,6 +63,68 @@ class AdminHistoryPage extends ConsumerWidget {
               ),
             ),
           
+          // Role filter indicator
+          if (roleFilter != null)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              color: Colors.blue[50],
+              child: Row(
+                children: [
+                  Icon(
+                    roleFilter.toLowerCase() == 'admin' 
+                      ? Icons.admin_panel_settings 
+                      : Icons.local_library,
+                    size: 16,
+                    color: roleFilter.toLowerCase() == 'admin' 
+                      ? Colors.red[700] 
+                      : Colors.blue[700],
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Filter: ${roleFilter.toLowerCase() == 'admin' ? 'Admin' : 'Pustakawan'}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () => ref.read(roleFilterProvider.notifier).state = null,
+                  ),
+                ],
+              ),
+            ),
+          
+          // Type filter indicator
+          if (typeFilter != null)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              color: Colors.green[50],
+              child: Row(
+                children: [
+                  Icon(
+                    _getActivityIcon(typeFilter),
+                    size: 16,
+                    color: _getActivityColor(typeFilter),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Filter: ${_getActivityTypeName(typeFilter)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () => ref.read(activityTypeFilterProvider.notifier).state = null,
+                  ),
+                ],
+              ),
+            ),
+          
           // Activity list
           Expanded(
             child: allActivitiesAsync.when(
@@ -93,73 +158,123 @@ class AdminHistoryPage extends ConsumerWidget {
   }
 
   Widget _buildActivityItem(BuildContext context, ActivityModel activity) {
+    final userRole = activity.metadata?['userRole'] as String? ?? 
+                    (activity.metadata?['role'] as String?) ?? 'admin';
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: _getActivityColor(activity.activityType),
-          child: Icon(
-            _getActivityIcon(activity.activityType),
-            color: Colors.white,
-            size: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: CircleAvatar(
+              backgroundColor: _getActivityColor(activity.activityType),
+              child: Icon(
+                _getActivityIcon(activity.activityType),
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            title: Text(activity.description),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      activity.userName ?? 'Unknown Admin',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Admin Role Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _getRoleColor(userRole),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        userRole.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.schedule,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatDateTime(activity.timestamp),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.info_outline),
+              onPressed: () => _showActivityDetails(context, activity),
+            ),
+            onTap: () => _showActivityDetails(context, activity),
           ),
-        ),
-        title: Text(activity.description),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(
-                  Icons.person,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  activity.userName ?? 'Unknown User',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(
-                  Icons.schedule,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _formatDateTime(activity.timestamp),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.info_outline),
-          onPressed: () => _showActivityDetails(context, activity),
-        ),
-        onTap: () => _showActivityDetails(context, activity),
+        ],
       ),
     );
   }
 
   void _showActivityDetails(BuildContext context, ActivityModel activity) {
+    final userRole = activity.userRole ?? 
+                    (activity.metadata?['role'] as String?) ?? 
+                    'admin';
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Detail Aktivitas'),
+        title: Row(
+          children: [
+            const Text('Detail Aktivitas'),
+            const Spacer(),
+            // Admin Role Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _getRoleColor(userRole),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                userRole.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,8 +288,16 @@ class AdminHistoryPage extends ConsumerWidget {
                   fontSize: 14,
                 ),
               ),
-              Text(
-                _getActivityTypeName(activity.activityType),
+              Row(
+                children: [
+                  Icon(
+                    _getActivityIcon(activity.activityType),
+                    size: 16,
+                    color: _getActivityColor(activity.activityType),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_getActivityTypeName(activity.activityType)),
+                ],
               ),
               const SizedBox(height: 16),
               
@@ -189,15 +312,15 @@ class AdminHistoryPage extends ConsumerWidget {
               Text(activity.description),
               const SizedBox(height: 16),
               
-              // User
+              // Admin Info
               const Text(
-                'Pengguna',
+                'Admin',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
               ),
-              Text(activity.userName ?? 'Unknown'),
+              Text('${activity.userName ?? 'Unknown'} (${userRole.toUpperCase()})'),
               const SizedBox(height: 16),
               
               // Timestamp
@@ -214,7 +337,7 @@ class AdminHistoryPage extends ConsumerWidget {
               // Metadata if available
               if (activity.metadata != null && activity.metadata!.isNotEmpty) ...[
                 const Text(
-                  'Metadata',
+                  'Detail Tambahan',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -229,21 +352,23 @@ class AdminHistoryPage extends ConsumerWidget {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: activity.metadata!.entries.map((entry) {
+                    children: activity.metadata!.entries
+                        .where((entry) => entry.key != 'userRole' && entry.key != 'role')
+                        .map((entry) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${entry.key}: ',
+                              '${_formatMetadataKey(entry.key)}: ',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             Expanded(
                               child: Text(
-                                entry.value.toString(),
+                                _formatMetadataValue(entry.value),
                               ),
                             ),
                           ],
@@ -269,68 +394,123 @@ class AdminHistoryPage extends ConsumerWidget {
   void _showFilterOptions(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const ListTile(
-            title: Text(
-              'Filter Aktivitas',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
+      builder: (context) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                'Filter Aktivitas',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.all_inclusive),
-            title: const Text('Semua Aktivitas'),
-            onTap: () {
-              ref.read(activityTypeFilterProvider.notifier).state = null;
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.book),
-            title: const Text('Peminjaman Buku'),
-            onTap: () {
-              ref.read(activityTypeFilterProvider.notifier).state = ActivityType.borrowBook;
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.assignment_return),
-            title: const Text('Pengembalian Buku'),
-            onTap: () {
-              ref.read(activityTypeFilterProvider.notifier).state = ActivityType.returnBook;
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.add_box),
-            title: const Text('Penambahan Buku'),
-            onTap: () {
-              ref.read(activityTypeFilterProvider.notifier).state = ActivityType.addBook;
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit),
-            title: const Text('Pembaruan Buku'),
-            onTap: () {
-              ref.read(activityTypeFilterProvider.notifier).state = ActivityType.updateBook;
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Pembaruan Profil'),
-            onTap: () {
-              ref.read(activityTypeFilterProvider.notifier).state = ActivityType.updateProfile;
-              Navigator.pop(context);
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
+            const Divider(),
+            
+            // Activity Type Filters
+            const Padding(
+              padding: EdgeInsets.only(left: 16.0, top: 8.0, bottom: 4.0),
+              child: Text(
+                'BERDASARKAN JENIS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.all_inclusive),
+              title: const Text('Semua Aktivitas'),
+              onTap: () {
+                ref.read(activityTypeFilterProvider.notifier).state = null;
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.book),
+              title: const Text('Peminjaman Buku'),
+              onTap: () {
+                ref.read(activityTypeFilterProvider.notifier).state = ActivityType.borrowBook;
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.assignment_return),
+              title: const Text('Pengembalian Buku'),
+              onTap: () {
+                ref.read(activityTypeFilterProvider.notifier).state = ActivityType.returnBook;
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_box),
+              title: const Text('Penambahan Buku'),
+              onTap: () {
+                ref.read(activityTypeFilterProvider.notifier).state = ActivityType.addBook;
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Pembaruan Buku'),
+              onTap: () {
+                ref.read(activityTypeFilterProvider.notifier).state = ActivityType.updateBook;
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('Pembaruan Profil'),
+              onTap: () {
+                ref.read(activityTypeFilterProvider.notifier).state = ActivityType.updateProfile;
+                Navigator.pop(context);
+              },
+            ),
+            
+            const Divider(),
+            
+            // Role Filters
+            const Padding(
+              padding: EdgeInsets.only(left: 16.0, top: 8.0, bottom: 4.0),
+              child: Text(
+                'BERDASARKAN PERAN',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.person_outline, color: Colors.grey[700]),
+              title: const Text('Semua Peran'),
+              onTap: () {
+                ref.read(roleFilterProvider.notifier).state = null;
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.admin_panel_settings, color: Colors.red[700]),
+              title: const Text('Admin'),
+              onTap: () {
+                ref.read(roleFilterProvider.notifier).state = 'admin';
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.local_library, color: Colors.blue[700]),
+              title: const Text('Pustakawan'),
+              onTap: () {
+                ref.read(roleFilterProvider.notifier).state = 'librarian';
+                Navigator.pop(context);
+              },
+            ),
+            
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -543,5 +723,42 @@ class AdminHistoryPage extends ConsumerWidget {
       default:
         return 'Umum';
     }
+  }
+
+  // Tambahkan fungsi ini untuk warna role
+  Color _getRoleColor(String role) {
+    switch (role.toLowerCase()) {
+      case 'admin':
+        return Colors.red[700]!;
+      case 'librarian':
+        return Colors.blue[700]!;
+      default:
+        return Colors.grey[700]!;
+    }
+  }
+
+  // Format metadata key untuk tampilan yang lebih baik
+  String _formatMetadataKey(String key) {
+    // Kapitalisasi huruf pertama dan ubah camelCase ke spasi
+    final formatted = key.replaceAllMapped(
+      RegExp(r'([A-Z])'),
+      (match) => ' ${match.group(0)}',
+    );
+    return formatted[0].toUpperCase() + formatted.substring(1);
+  }
+
+  // Format nilai metadata
+  String _formatMetadataValue(dynamic value) {
+    if (value == null) return 'N/A';
+    
+    if (value is Timestamp) {
+      return DateFormat('dd/MM/yyyy HH:mm').format(value.toDate());
+    }
+    
+    if (value is bool) {
+      return value ? 'Ya' : 'Tidak';
+    }
+    
+    return value.toString();
   }
 }

@@ -22,7 +22,8 @@ enum ActivityType {
 class ActivityModel {
   final String id;
   final String userId;
-  final String? userName; // Nama pengguna (opsional)
+  final String? userName;
+  final String? userRole; // Role pengguna (admin/pustakawan)
   final ActivityType activityType;
   final DateTime timestamp;
   final String description;
@@ -32,6 +33,7 @@ class ActivityModel {
     required this.id,
     required this.userId,
     this.userName,
+    this.userRole,
     required this.activityType,
     required this.timestamp,
     required this.description,
@@ -54,6 +56,7 @@ class ActivityModel {
       id: json['id'] as String,
       userId: json['userId'] as String,
       userName: json['userName'] as String?,
+      userRole: json['userRole'] as String?,
       activityType: type,
       timestamp: json['timestamp'] is Timestamp 
           ? (json['timestamp'] as Timestamp).toDate() 
@@ -67,6 +70,7 @@ class ActivityModel {
     return {
       'id': id,
       'userId': userId,
+      'userRole': userRole,
       'activityType': activityType.toString().split('.').last,
       'timestamp': timestamp,
       'description': description,
