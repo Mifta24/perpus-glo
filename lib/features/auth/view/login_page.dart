@@ -28,10 +28,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       final success = await ref.read(authControllerProvider.notifier).login(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-      
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
+
       if (success && mounted) {
         context.go('/home');
       }
@@ -41,7 +41,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
-    
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -54,7 +54,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Logo or app name
+                    // Logo
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: 150,
+                          maxHeight: 150,
+                        ),
+                        child: Image.asset(
+                          'assets/images/logo-global2.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     const Text(
                       'Perpus GLO',
                       style: TextStyle(
@@ -70,7 +83,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
-                    
+
                     // Email field
                     TextFormField(
                       controller: _emailController,
@@ -90,7 +103,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Password field
                     TextFormField(
                       controller: _passwordController,
@@ -100,7 +113,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _isObscure ? Icons.visibility_off : Icons.visibility,
+                            _isObscure
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                           onPressed: () {
                             setState(() {
@@ -120,7 +135,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Login button
                     SizedBox(
                       height: 48,
@@ -131,13 +146,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             : const Text('LOGIN'),
                       ),
                     ),
-                    
+
                     // Register link
                     TextButton(
                       onPressed: () => context.push('/register'),
                       child: const Text('Belum punya akun? Daftar'),
                     ),
-                    
+
                     // Error message
                     if (authState.hasError)
                       Padding(

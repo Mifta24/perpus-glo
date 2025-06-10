@@ -32,11 +32,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
       final success = await ref.read(authControllerProvider.notifier).register(
-        _nameController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-      
+            _nameController.text.trim(),
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
+
       if (success && mounted) {
         context.go('/home');
       }
@@ -46,7 +46,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Daftar Akun'),
@@ -62,6 +62,27 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Logo
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: 150,
+                          maxHeight: 150,
+                        ),
+                        child: Image.asset(
+                          'assets/images/logo-global2.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Daftar Akun',
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
                     // Nama lengkap field
                     TextFormField(
                       controller: _nameController,
@@ -78,7 +99,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Email field
                     TextFormField(
                       controller: _emailController,
@@ -98,7 +119,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Password field
                     TextFormField(
                       controller: _passwordController,
@@ -108,7 +129,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _isObscurePassword ? Icons.visibility_off : Icons.visibility,
+                            _isObscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                           onPressed: () {
                             setState(() {
@@ -128,7 +151,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Confirm Password field
                     TextFormField(
                       controller: _confirmPasswordController,
@@ -138,11 +161,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _isObscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                            _isObscureConfirmPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                           onPressed: () {
                             setState(() {
-                              _isObscureConfirmPassword = !_isObscureConfirmPassword;
+                              _isObscureConfirmPassword =
+                                  !_isObscureConfirmPassword;
                             });
                           },
                         ),
@@ -158,7 +184,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Register button
                     SizedBox(
                       height: 48,
@@ -169,13 +195,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             : const Text('DAFTAR'),
                       ),
                     ),
-                    
+
                     // Login link
                     TextButton(
                       onPressed: () => context.pop(),
                       child: const Text('Sudah punya akun? Login'),
                     ),
-                    
+
                     // Error message
                     if (authState.hasError)
                       Padding(

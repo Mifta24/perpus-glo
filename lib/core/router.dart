@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:perpusglo/features/admin/view/categories/admin_categories_page.dart';
 import 'package:perpusglo/features/admin/view/categories/admin_category_books_page.dart';
 import 'package:perpusglo/features/admin/view/history/admin_history_page.dart';
+import 'package:perpusglo/features/admin/view/overdue_books_page.dart';
 import 'package:perpusglo/features/borrow/view/debug_overdue_page.dart';
 import 'package:perpusglo/features/categories/view/category_detail_page.dart';
 import '../features/auth/view/login_page.dart';
@@ -149,6 +150,10 @@ final GoRouter router = GoRouter(
     GoRoute(
       path: '/admin/borrows',
       builder: (context, state) => const BorrowManagementPage(),
+    ),
+    GoRoute(
+      path: '/admin/borrows/overdue',
+      builder: (context, state) => const OverdueBooksPage(),
     ),
     GoRoute(
       path: '/admin/users',
