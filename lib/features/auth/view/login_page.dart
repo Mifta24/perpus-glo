@@ -33,7 +33,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           );
 
       if (success && mounted) {
-        context.go('/home');
+        // Dapatkan data pengguna setelah login berhasil
+        final currentUser = await ref.refresh(currentUserProvider.future);
+
+        // Cek role pengguna dan arahkan ke halaman yang sesuai
+        if (currentUser != null) {
+          if (currentUser.isAdmin || currentUser.isLibrarian) {
+            // Jika admin atau pustakawan, arahkan ke dashboard admin
+            context.go('/admin');
+          } else {
+            // Jika pengguna biasa, arahkan ke home
+            context.go('/home');
+          }
+        } else {
+          // Fallback jika user data tidak tersedia
+          context.go('/home');
+        }
       }
     }
   }

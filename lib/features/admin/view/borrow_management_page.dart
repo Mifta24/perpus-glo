@@ -206,6 +206,7 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
     );
   }
 
+  // Modifikasi _buildBorrowCard untuk layout yang lebih baik
   Widget _buildBorrowCard(BorrowModel borrow,
       {bool isPending = false, bool isPendingReturn = false}) {
     final controller = ref.watch(borrowControllerProvider);
@@ -223,7 +224,7 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status bar
+          // Status bar - sudah diperbaiki dengan Flexible
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -235,17 +236,23 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Status: ${borrow.status.name}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: borrow.status.color,
+                Flexible(
+                  child: Text(
+                    'Status: ${borrow.status.name}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: borrow.status.color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (isPending)
-                  Text(
-                    'Diajukan: ${_dateFormat.format(borrow.requestDate)}',
-                    style: const TextStyle(fontSize: 12),
+                  Flexible(
+                    child: Text(
+                      'Diajukan: ${_dateFormat.format(borrow.requestDate)}',
+                      style: const TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
             ),
@@ -294,9 +301,14 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
                       const SizedBox(height: 4),
-                      Text('ID Buku: ${borrow.bookId}'),
+                      Text(
+                        'ID Buku: ${borrow.bookId}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       const SizedBox(height: 8),
                       _buildInfoRow(
                           'Peminjam', borrow.userName ?? 'Unknown User'),
@@ -323,6 +335,8 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
                               color: Colors.red[700],
                               fontStyle: FontStyle.italic,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
                           ),
                         ),
                     ],
@@ -421,6 +435,7 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 80,
@@ -439,6 +454,7 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
                 fontSize: 13,
                 color: textColor,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

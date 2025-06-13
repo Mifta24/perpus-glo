@@ -7,10 +7,14 @@ import '../../../common/widgets/loading_indicator.dart';
 import '../../../common/widgets/empty_state.dart';
 import '../../borrow/model/borrow_model.dart';
 import '../../borrow/providers/borrow_provider.dart';
+import 'package:intl/date_symbol_data_local.dart'; 
 
 // Provider khusus untuk peminjaman yang terlambat
 final overdueBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
+  // Cek semua peminjaman aktif
   final allBorrows = ref.watch(allBorrowsProvider);
+  
+  // Handle loading state dengan lebih baik
   return allBorrows.when(
     data: (borrows) {
       // Filter untuk mendapatkan buku yang terlambat saja
@@ -18,8 +22,8 @@ final overdueBorrowsProvider = StreamProvider<List<BorrowModel>>((ref) {
           .where((borrow) => borrow.status == BorrowStatus.overdue)
           .toList());
     },
-    loading: () => Stream.value([]),
-    error: (e, st) => Stream.value([]),
+    loading: () => const Stream.empty(), // Gunakan Stream.empty() daripada Stream.value([])
+    error: (e, st) => Stream.error(e, st), // Teruskan error dengan stack trace
   );
 });
 
@@ -34,6 +38,13 @@ class _OverdueBooksPageState extends ConsumerState<OverdueBooksPage> {
   String? _searchQuery;
   final _searchController = TextEditingController();
   bool _isProcessing = false;
+
+ @override
+  void initState() {
+    super.initState();
+    // Inisialisasi data locale untuk bahasa Indonesia
+    initializeDateFormatting('id_ID', null);
+  }
 
   @override
   void dispose() {
@@ -160,8 +171,57 @@ class _OverdueBooksPageState extends ConsumerState<OverdueBooksPage> {
                 ),
               );
             },
-            loading: () => const SizedBox(height: 80),
-            error: (e, _) => const SizedBox(height: 80),
+            loading: () => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Card(
+                color: Colors.blue.shade50,
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Memuat data buku terlambat...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Card(
+                color: Colors.red.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Terjadi kesalahan: ${e.toString()}',
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
 
           // Overdue books list
@@ -191,17 +251,54 @@ class _OverdueBooksPageState extends ConsumerState<OverdueBooksPage> {
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: filteredBooks.length,
-                  itemBuilder: (context, index) {
-                    return _buildOverdueBookItem(context, filteredBooks[index]);
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    ref.refresh(overdueBorrowsProvider);
+                    await ref.read(borrowRepositoryProvider).checkOverdueBooks();
                   },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filteredBooks.length,
+                    itemBuilder: (context, index) {
+                      return _buildOverdueBookItem(context, filteredBooks[index]);
+                    },
+                  ),
                 );
               },
-              loading: () => const Center(child: LoadingIndicator()),
+              loading: () => const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      'Memuat data buku terlambat...',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               error: (e, stack) => Center(
-                child: Text('Error: ${e.toString()}'),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    SizedBox(height: 16),
+                    Text(
+                      'Error: ${e.toString()}',
+                      style: TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => ref.refresh(overdueBorrowsProvider),
+                      child: Text('COBA LAGI'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -343,18 +440,22 @@ class _OverdueBooksPageState extends ConsumerState<OverdueBooksPage> {
             ),
             const SizedBox(height: 16),
             const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Gunakan Wrap untuk mengganti Row agar tidak overflow
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
               children: [
                 OutlinedButton.icon(
                   onPressed: () => _showBorrowDetails(context, borrow),
-                  icon: const Icon(Icons.info_outline),
+                  icon: const Icon(Icons.info_outline, size: 18),
                   label: const Text('DETAIL'),
                 ),
                 FilledButton.icon(
                   onPressed: () => _processReturn(context, borrow),
-                  icon: const Icon(Icons.assignment_return),
-                  label: const Text('PROSES PENGEMBALIAN'),
+                  icon: const Icon(Icons.assignment_return, size: 18),
+                  // Buat label lebih pendek agar tidak overflow
+                  label: const Text('PROSES KEMBALI'),
                 ),
               ],
             ),

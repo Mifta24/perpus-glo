@@ -68,6 +68,7 @@ class BookManagementPage extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
+      //  Gunakan Dismissible untuk menghapus buku ketika di-swipe 
       child: Dismissible(
         key: Key(book.id ?? ''),
         direction: DismissDirection.endToStart,

@@ -5,6 +5,9 @@ import 'package:perpusglo/features/admin/view/categories/admin_categories_page.d
 import 'package:perpusglo/features/admin/view/categories/admin_category_books_page.dart';
 import 'package:perpusglo/features/admin/view/history/admin_history_page.dart';
 import 'package:perpusglo/features/admin/view/overdue_books_page.dart';
+import 'package:perpusglo/features/admin/view/settings/admin_settings_page.dart';
+import 'package:perpusglo/features/admin/view/user_edit_page.dart';
+import 'package:perpusglo/features/admin/view/user_search_results_page.dart';
 import 'package:perpusglo/features/borrow/view/debug_overdue_page.dart';
 import 'package:perpusglo/features/categories/view/category_detail_page.dart';
 import '../features/auth/view/login_page.dart';
@@ -120,7 +123,7 @@ final GoRouter router = GoRouter(
     ),
     GoRoute(
       path: '/settings',
-      builder: (context, state) => const SettingsPage(),
+      builder: (context, state) => const AdminSettingsPage(),
     ),
 
     // Admin Routes - BARU
@@ -158,6 +161,20 @@ final GoRouter router = GoRouter(
     GoRoute(
       path: '/admin/users',
       builder: (context, state) => const UserManagementPage(),
+    ),
+    GoRoute(
+      path: '/admin/users/:id',
+      builder: (context, state) {
+        final userId = state.pathParameters['id']!;
+        return UserEditPage(userId: userId);
+      },
+    ),
+    GoRoute(
+      path: '/admin/users/search/:query',
+      builder: (context, state) {
+        final query = state.pathParameters['query']!;
+        return UserSearchResultsPage(query: query);
+      },
     ),
     GoRoute(
       path: '/admin/history',

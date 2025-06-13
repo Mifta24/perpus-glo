@@ -40,6 +40,53 @@ class ProfileRepository {
     });
   }
 
+// Metode untuk mendapatkan pengguna berdasarkan ID
+  Stream<UserProfileModel> getUserProfileById(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists) {
+        throw Exception('User tidak ditemukan');
+      }
+      final data = snapshot.data()!;
+      return UserProfileModel.fromJson({
+        'id': snapshot.id,
+        ...data,
+      });
+    });
+  }
+
+// Metode untuk mencari pengguna
+  Future<List<UserProfileModel>> searchUsers(String query) async {
+    // Cari berdasarkan nama (case insensitive)
+    final nameResults = await _firestore
+        .collection('users')
+        .where('nameLower', isGreaterThanOrEqualTo: query.toLowerCase())
+        .where('nameLower', isLessThanOrEqualTo: query.toLowerCase() + '\uf8ff')
+        .get();
+
+    // Cari berdasarkan email (case insensitive)
+    final emailResults = await _firestore
+        .collection('users')
+        .where('emailLower', isGreaterThanOrEqualTo: query.toLowerCase())
+        .where('emailLower',
+            isLessThanOrEqualTo: query.toLowerCase() + '\uf8ff')
+        .get();
+
+    // Gabungkan hasil dan hilangkan duplikat
+    final allDocs = {...nameResults.docs, ...emailResults.docs};
+
+    return allDocs.map((doc) {
+      final data = doc.data();
+      return UserProfileModel.fromJson({
+        'id': doc.id,
+        ...data,
+      });
+    }).toList();
+  }
+
   // Create or update user profile
   Future<void> saveUserProfile(UserProfileModel profile) async {
     final userId = currentUserId;
@@ -54,7 +101,6 @@ class ProfileRepository {
         .doc(userId)
         .set(updatedProfile.toJson(), SetOptions(merge: true));
   }
-  
 
   // Update profile picture
   // Future<String> updateProfilePicture(File imageFile, dynamic uploadTask) async {
@@ -129,6 +175,99 @@ class ProfileRepository {
 
     // Update the password
     await user.updatePassword(newPassword);
+  }
+
+// Metode untuk menghapus pengguna (untuk admin)
+  Future<void> deleteUser(String userId) async {
+    // Verifikasi bahwa yang melakukan penghapusan adalah admin
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) {
+      throw Exception('Admin tidak terautentikasi');
+    }
+
+    // Verifikasi role admin
+    final adminDoc = await _usersRef.doc(currentUserId).get();
+    final adminData = adminDoc.data() as Map<String, dynamic>?;
+    if (adminData == null) {
+      throw Exception('Data admin tidak ditemukan');
+    }
+
+    final adminRole = _roleFromString(adminData['role'] ?? 'user');
+    if (adminRole != UserRole.admin && adminRole != UserRole.librarian) {
+      throw Exception(
+          'Hanya admin atau pustakawan yang dapat menghapus pengguna');
+    }
+
+    // Pastikan user yang akan dihapus bukan admin
+    final userDoc = await _usersRef.doc(userId).get();
+    if (!userDoc.exists) {
+      throw Exception('Pengguna tidak ditemukan');
+    }
+
+    final userData = userDoc.data() as Map<String, dynamic>;
+    final userRole = _roleFromString(userData['role'] ?? 'user');
+
+    // Hanya admin yang dapat menghapus admin/pustakawan lain
+    if ((userRole == UserRole.admin || userRole == UserRole.librarian) &&
+        adminRole != UserRole.admin) {
+      throw Exception(
+          'Hanya admin yang dapat menghapus admin atau pustakawan lain');
+    }
+
+    // Mulai proses penghapusan
+    final batch = _firestore.batch();
+
+    try {
+      // 1. Hapus peminjaman terkait user
+      final borrowsRef = _firestore.collection('borrows');
+      final borrowDocs =
+          await borrowsRef.where('userId', isEqualTo: userId).get();
+
+      for (var doc in borrowDocs.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // 2. Hapus history/aktivitas terkait user
+      final historyRef = _firestore.collection('history');
+      final historyDocs =
+          await historyRef.where('userId', isEqualTo: userId).get();
+
+      for (var doc in historyDocs.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // 3. Hapus data profil user
+      batch.delete(_usersRef.doc(userId));
+
+      // 4. Commit batch operation
+      await batch.commit();
+
+      // 5. Simpan log admin
+      await logAdminAction('deleteUser', userId,
+          'Admin ${adminData['name']} menghapus pengguna ${userData['name']} (${userData['email']})');
+
+      // 6. Tambahkan log ke history
+      await _firestore.collection('history').add({
+        'userId': currentUserId,
+        'activityType': 'deleteUser',
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Menghapus pengguna dari sistem',
+        'metadata': {
+          'deletedUserId': userId,
+          'deletedUserEmail': userData['email'],
+          'deletedUserName': userData['name'],
+          'deletedUserRole': userData['role'],
+        },
+      });
+
+      // Hapus user dari Firebase Auth (jika diperlukan)
+      // Catatan: Ini memerlukan Firebase Admin SDK dan tidak bisa dilakukan langsung dari client
+      // Biasanya dilakukan melalui Cloud Functions
+
+      return;
+    } catch (e) {
+      throw Exception('Gagal menghapus pengguna: ${e.toString()}');
+    }
   }
 
   // Delete user account
@@ -233,6 +372,27 @@ class ProfileRepository {
     await _usersRef
         .doc(userId)
         .update({'role': role.toString().split('.').last});
+  }
+
+  // Update user profile
+  Future<void> updateUserProfile(UserProfileModel profile) async {
+    await _usersRef.doc(profile.id).update(profile.toJson());
+
+    // Tambahkan log ke history
+    await _firestore.collection('history').add({
+      'userId': currentUserId,
+      'activityType': 'updateUser',
+      'timestamp': FieldValue.serverTimestamp(),
+      'description': 'Memperbarui profil pengguna',
+      'metadata': {
+        'updatedUserId': profile.id,
+        'updatedUserEmail': profile.email,
+        'updatedUserName': profile.name,
+        'updatedUserRole': profile.role,
+      },
+    });
+
+    
   }
 
   // Deactivate user account (for admin)

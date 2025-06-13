@@ -253,32 +253,51 @@ class BorrowRepository {
 
   // Get borrow by ID
   Future<BorrowModel?> getBorrowById(String borrowId) async {
-    final doc = await _borrowsRef.doc(borrowId).get();
-    if (!doc.exists) {
+    try {
+      final borrowDoc = await _borrowsRef.doc(borrowId).get();
+
+      if (!borrowDoc.exists) return null;
+
+      final borrowData = borrowDoc.data() as Map<String, dynamic>;
+
+      // Get book details
+      String? bookTitle, booksAuthor, bookCover;
+      if (borrowData['bookId'] != null) {
+        final bookDoc =
+            await _booksRef.doc(borrowData['bookId'] as String).get();
+        if (bookDoc.exists) {
+          final bookData = bookDoc.data() as Map<String, dynamic>;
+          bookTitle = bookData['title'] as String?;
+          booksAuthor = bookData['author'] as String?;
+          bookCover = bookData['coverUrl'] as String?;
+        }
+      }
+
+      // Get user details
+      String? userName, userEmail;
+      if (borrowData['userId'] != null) {
+        final userDoc =
+            await _usersRef.doc(borrowData['userId'] as String).get();
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          userName = userData['name'] as String?;
+          userEmail = userData['email'] as String?; // Tambahkan ini
+        }
+      }
+
+      return BorrowModel.fromJson({
+        'id': borrowDoc.id,
+        ...borrowData,
+        'bookTitle': bookTitle,
+        'booksAuthor': booksAuthor,
+        'bookCover': bookCover,
+        'userName': userName,
+        'userEmail': userEmail, // Tambahkan ini
+      });
+    } catch (e) {
+      print('Error getting borrow: $e');
       return null;
     }
-
-    final data = doc.data() as Map<String, dynamic>;
-    final borrowModel = BorrowModel.fromJson({
-      'id': doc.id,
-      ...data,
-    });
-
-    // Fetch book information for UI
-    try {
-      final bookDoc = await _booksRef.doc(borrowModel.bookId).get();
-      if (bookDoc.exists) {
-        final bookData = bookDoc.data() as Map<String, dynamic>;
-        return borrowModel.copyWith(
-          bookTitle: bookData['title'] as String,
-          bookCover: bookData['coverUrl'] as String,
-        );
-      }
-    } catch (e) {
-      // If book fetch fails, return borrow without book info
-    }
-
-    return borrowModel;
   }
 
   // Borrow a book (request borrowing)
@@ -1192,7 +1211,7 @@ class BorrowRepository {
         'paymentMethod': paymentMethod,
         'paymentDate': DateTime.now(),
       });
-      // Update user's fine amount  
+      // Update user's fine amount
       if (userId != null) {
         final userDoc = await _usersRef.doc(userId).get();
         if (userDoc.exists) {

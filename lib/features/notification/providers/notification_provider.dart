@@ -33,6 +33,32 @@ final unreadNotificationCountProvider = StreamProvider<int>((ref) {
       );
 });
 
+// Provider untuk pengaturan notifikasi
+final notificationSettingsProvider = StateProvider<Map<String, bool>>((ref) {
+  return {
+    'notifyBorrowRequests': true,
+    'notifyReturnRequests': true,
+    'notifyOverdueBooks': true,
+    'notifyFinePayments': true,
+  };
+});
+
+// Provider untuk notifikasi terbaru (untuk widget & dashboard)
+final recentNotificationsProvider = Provider<List<NotificationModel>>((ref) {
+  final allNotifications = ref.watch(userNotificationsProvider);
+
+  return allNotifications.when(
+    data: (notifications) {
+      // Return 5 notifikasi terbaru
+      final sorted = [...notifications]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return sorted.take(5).toList();
+    },
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
 // Controller for notification actions
 class NotificationStateController extends StateNotifier<AsyncValue<void>> {
   final NotificationService _service;

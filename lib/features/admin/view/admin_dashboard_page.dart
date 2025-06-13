@@ -633,7 +633,7 @@ class AdminDashboardPage extends ConsumerWidget {
             title: const Text('Pengaturan'),
             onTap: () {
               Navigator.pop(context);
-              context.push('/admin/settings');
+              context.push('/settings');
             },
           ),
           ListTile(

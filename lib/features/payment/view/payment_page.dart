@@ -11,6 +11,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../common/widgets/loading_indicator.dart';
 import '../model/payment_model.dart';
 import '../providers/payment_provider.dart';
+import 'package:flutter/services.dart'; // Untuk Clipboard
 
 class PaymentPage extends ConsumerStatefulWidget {
   final String fineId; // ID of the borrow record
@@ -154,7 +155,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         print('Navigating back to borrow-history');
         if (mounted) {
           context.go('/borrow-history');
-          
         }
       } else {
         print('Payment failed or component not mounted');
@@ -584,6 +584,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   }
 
   Widget _buildBankTransferPayment() {
+    // Dapatkan username dari email (sebelum @)
+    String usernameFromEmail = '';
+    if (_borrowDetail?.userEmail != null) {
+      usernameFromEmail = _borrowDetail!.userEmail!.split('@')[0];
+    }
+
+    // Dapatkan nama pengguna
+    String userName = _borrowDetail?.userName ?? 'Global Institute';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -609,12 +618,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildBankInfo('Bank Mandiri', '1234567890', 'Perpustakaan GLO'),
-                // const Divider(height: 24),
-                // _buildBankInfo('Bank BRI', '9876543210', 'Perpustakaan GLO'),
-                // const Divider(height: 24),
-                // _buildBankInfo(
-                //     'Bank Mandiri', '5432167890', 'Perpustakaan GLO'),
+                _buildBankInfo('Bank Mandiri', usernameFromEmail, userName),
               ],
             ),
           ),
@@ -631,35 +635,109 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
 
   Widget _buildBankInfo(
       String bankName, String accountNumber, String accountName) {
-    return Row(
-      children: [
-        Column(
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              bankName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Image.asset(
+                  'assets/images/bank-mandiri-logo.png', // Logo Bank Mandiri
+                  width: 80,
+                  height: 24,
+                  errorBuilder: (context, error, stackTrace) => Text(
+                    bankName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 18),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: accountNumber));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Nomor rekening $bankName disalin'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  tooltip: 'Salin nomor rekening',
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text(
+              'Nomor Rekening',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 4),
-            Text(accountNumber),
+            Row(
+              children: [
+                Text(
+                  accountNumber,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.content_copy, size: 16),
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: accountNumber));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Nomor rekening disalin'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Atas Nama',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(accountName),
+            Text(
+              accountName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Nominal: ${currencyFormat.format(widget.amount)}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
-        const Spacer(),
-        IconButton(
-          icon: const Icon(Icons.copy),
-          onPressed: () {
-            // Copy to clipboard functionality
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Nomor rekening $bankName disalin'),
-              ),
-            );
-          },
-          tooltip: 'Salin nomor rekening',
-        ),
-      ],
+      ),
     );
   }
 

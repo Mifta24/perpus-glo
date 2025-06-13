@@ -75,6 +75,7 @@ class BorrowModel {
   final String? bookCover;
   final String? booksAuthor;
   final String? userName; // Nama peminjam (untuk admin/librarian)
+  final String? userEmail;
 
   BorrowModel({
     required this.id,
@@ -96,6 +97,7 @@ class BorrowModel {
     this.bookCover,
     this.booksAuthor,
     this.userName,
+    this.userEmail,
   });
 
   factory BorrowModel.fromJson(Map<String, dynamic> json) {
