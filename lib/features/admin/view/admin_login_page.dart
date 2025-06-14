@@ -33,8 +33,9 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
         _passwordController.text.trim(),
       );
       
+      
       if (success && mounted) {
-        context.go('/admin/dashboard');
+        context.go('/admin');
       }
     }
   }

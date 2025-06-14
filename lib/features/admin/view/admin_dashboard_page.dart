@@ -222,7 +222,9 @@ class AdminDashboardPage extends ConsumerWidget {
                   icon: Icons.book,
                   valueAsync: booksCountAsync,
                   color: Colors.blue,
-                  onTap: () => context.push('/admin/books'),
+                  onTap: profile.role == UserRole.admin
+                      ? () => context.push('/admin/books')
+                      : () {},
                 ),
                 _buildStatCard(
                   context: context,
@@ -230,7 +232,9 @@ class AdminDashboardPage extends ConsumerWidget {
                   icon: Icons.bookmark,
                   valueAsync: activeLoansCountAsync,
                   color: Colors.green,
-                  onTap: () => context.push('/admin/borrows'),
+                  onTap: profile.role == UserRole.librarian
+                      ? () => context.push('/admin/borrows')
+                      : () {},
                 ),
                 _buildStatCard(
                   context: context,
@@ -240,14 +244,18 @@ class AdminDashboardPage extends ConsumerWidget {
                   color: Colors.orange,
                   onTap: () => context.push('/admin/borrows/overdue'),
                 ),
+
                 _buildStatCard(
                   context: context,
                   title: 'Kategori',
                   icon: Icons.category,
                   valueAsync: ref.watch(categoriesCountProvider),
                   color: Colors.purple,
-                  onTap: () => context.push('/admin/categories'),
+                  onTap: profile.role == UserRole.admin
+                      ? () => context.push('/admin/categories')
+                      : () {},
                 ),
+
                 // Di AdminDashboardPage
                 // ListTile(
                 //   title: const Text('Debug Overdue Books'),
@@ -271,52 +279,58 @@ class AdminDashboardPage extends ConsumerWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: _buildActionButton(
-                    context: context,
-                    icon: Icons.add_box,
-                    label: 'Tambah Buku',
-                    color: Colors.green,
-                    onTap: () => context.push('/admin/books/add'),
+                if (profile.role == UserRole.admin) ...[
+                  Expanded(
+                    child: _buildActionButton(
+                      context: context,
+                      icon: Icons.add_box,
+                      label: 'Tambah Buku',
+                      color: Colors.green,
+                      onTap: () => context.push('/admin/books/add'),
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(width: 16),
-                Expanded(
-                  child: _buildActionButton(
-                    context: context,
-                    icon: Icons.book_online,
-                    label: 'Pinjamkan Buku',
-                    color: Colors.blue,
-                    onTap: () => context.push('/admin/borrows'),
+                if (profile.role == UserRole.librarian) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildActionButton(
+                      context: context,
+                      icon: Icons.book_online,
+                      label: 'Pinjamkan Buku',
+                      color: Colors.blue,
+                      onTap: () => context.push('/admin/borrows'),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    context: context,
-                    icon: Icons.history,
-                    label: 'Riwayat',
-                    color: Colors.deepPurple,
-                    onTap: () => context.push('/admin/history'),
+            if (profile.role == UserRole.admin) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildActionButton(
+                      context: context,
+                      icon: Icons.history,
+                      label: 'Riwayat',
+                      color: Colors.deepPurple,
+                      onTap: () => context.push('/admin/history'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildActionButton(
-                    context: context,
-                    icon: Icons.people,
-                    label: 'Kelola User',
-                    color: Colors.teal,
-                    onTap: () => context.push('/admin/users'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildActionButton(
+                      context: context,
+                      icon: Icons.people,
+                      label: 'Kelola User',
+                      color: Colors.teal,
+                      onTap: () => context.push('/admin/users'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
 
             // Recent activities
@@ -350,12 +364,12 @@ class AdminDashboardPage extends ConsumerWidget {
             //         ],
             //       ),
             //     );
-                
+
             //     if (shouldFix != true) return;
-                
+
             //     // Tampilkan loading
             //     showDialog(
-            //       context: context, 
+            //       context: context,
             //       barrierDismissible: false,
             //       builder: (context) => const AlertDialog(
             //         content: Column(
@@ -368,18 +382,18 @@ class AdminDashboardPage extends ConsumerWidget {
             //         ),
             //       ),
             //     );
-                
+
             //     // Jalankan perbaikan
             //     final count = await ref.read(fixReturnedStatusProvider.future);
-                
+
             //     // Tutup dialog loading
             //     Navigator.pop(context);
-                
+
             //     // Tampilkan hasil
             //     ScaffoldMessenger.of(context).showSnackBar(
             //       SnackBar(content: Text('Berhasil memperbaiki $count peminjaman')),
             //     );
-                
+
             //     // Refresh data
             //     ref.refresh(allBorrowsProvider);
             //   },
@@ -587,53 +601,78 @@ class AdminDashboardPage extends ConsumerWidget {
               context.go('/admin');
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.book),
-            title: const Text('Kelola Buku'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/admin/books');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.bookmark),
-            title: const Text('Kelola Peminjaman'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/admin/borrows');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.category),
-            title: const Text('Kelola Kategori'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/admin/categories');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.people),
-            title: const Text('Kelola Pengguna'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/admin/users');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Riwayat Aktivitas'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/admin/history');
-            },
-          ),
+
+          // HANYA PUSTAKAWAN: Menu kelola peminjaman
+          if (profile?.role == UserRole.librarian) ...[
+            ListTile(
+              leading: const Icon(Icons.book_online),
+              title: const Text('Kelola Peminjaman'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/borrows');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.assignment_return),
+              title: const Text('Permintaan Pengembalian'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/borrows');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.warning),
+              title: const Text('Buku Terlambat'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/borrows/overdue');
+              },
+            ),
+          ],
+
+          // HANYA ADMIN: Semua menu kecuali kelola peminjaman
+          if (profile?.role == UserRole.admin) ...[
+            ListTile(
+              leading: const Icon(Icons.book),
+              title: const Text('Kelola Buku'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/books');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.category),
+              title: const Text('Kelola Kategori'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/categories');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Kelola Pengguna'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/users');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Riwayat Aktivitas'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/admin/history');
+              },
+            ),
+          ],
+
           const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Pengaturan'),
             onTap: () {
               Navigator.pop(context);
-              context.push('/settings');
+              context.push('/admin/settings');
             },
           ),
           ListTile(

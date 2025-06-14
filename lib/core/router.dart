@@ -123,7 +123,7 @@ final GoRouter router = GoRouter(
     ),
     GoRoute(
       path: '/settings',
-      builder: (context, state) => const AdminSettingsPage(),
+      builder: (context, state) => const SettingsPage(),
     ),
 
     // Admin Routes - BARU
@@ -194,6 +194,11 @@ final GoRouter router = GoRouter(
         return AdminCategoryBooksPage(categoryId: categoryId);
       },
     ),
+    // Rute untuk mengelola pengaturan admin
+    GoRoute(
+      path: '/admin/settings',
+      builder: (context, state) => const AdminSettingsPage(),
+    ),
     // Di router.dart
     GoRoute(
       path: '/debug-overdue',
@@ -214,6 +219,9 @@ final GoRouter router = GoRouter(
       // Di sini kita sederhanakan dengan mengecek apakah user login
       if (!isLoggedIn) {
         return '/admin/login';
+      } else if (isLoggedIn && state.matchedLocation == '/admin/login') {
+        // Jika sudah login, redirect ke dashboard admin
+        return '/admin';
       }
 
       // Sebenarnya di sini kita perlu cek role user

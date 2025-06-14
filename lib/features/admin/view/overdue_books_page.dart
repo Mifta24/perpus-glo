@@ -610,20 +610,20 @@ class _OverdueBooksPageState extends ConsumerState<OverdueBooksPage> {
             onPressed: () => Navigator.pop(context),
             child: const Text('BATAL'),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _confirmReturn(context, borrow, true);
-            },
-            child: const Text('TERIMA TANPA DENDA'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _confirmReturn(context, borrow, false);
-            },
-            child: const Text('TERIMA DENGAN DENDA'),
-          ),
+          // TextButton(
+          //   onPressed: () {
+          //     Navigator.pop(context);
+          //     _confirmReturn(context, borrow, true);
+          //   },
+          //   child: const Text('TERIMA TANPA DENDA'),
+          // ),
+          // FilledButton(
+          //   onPressed: () {
+          //     Navigator.pop(context);
+          //     _confirmReturn(context, borrow, false);
+          //   },
+          //   child: const Text('TERIMA DENGAN DENDA'),
+          // ),
         ],
       ),
     );

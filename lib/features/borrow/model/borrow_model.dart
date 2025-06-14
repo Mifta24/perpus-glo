@@ -123,6 +123,7 @@ class BorrowModel {
       bookTitle: json['bookTitle'] as String?,
       bookCover: json['bookCover'] as String?,
       userName: json['userName'] as String?,
+      userEmail: json['userEmail'] as String?,
     );
   }
 
@@ -160,6 +161,7 @@ class BorrowModel {
       'fine': fine,
       'isPaid': isPaid,
 
+      
       // Request system properties
       'requestDate': requestDate,
       'confirmDate': confirmDate,
@@ -169,6 +171,7 @@ class BorrowModel {
       'rejectReason': rejectReason,
 
       // UI properties tidak disimpan ke Firestore
+
     };
   }
 
@@ -212,6 +215,7 @@ class BorrowModel {
       bookTitle: bookTitle ?? this.bookTitle,
       bookCover: bookCover ?? this.bookCover,
       userName: userName ?? this.userName,
+      userEmail: userEmail ?? this.userEmail,
     );
   }
 

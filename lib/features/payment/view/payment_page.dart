@@ -585,9 +585,9 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
 
   Widget _buildBankTransferPayment() {
     // Dapatkan username dari email (sebelum @)
-    String usernameFromEmail = '';
+    String norekFromEmail = '';
     if (_borrowDetail?.userEmail != null) {
-      usernameFromEmail = _borrowDetail!.userEmail!.split('@')[0];
+      norekFromEmail = _borrowDetail!.userEmail!.split('@')[0];
     }
 
     // Dapatkan nama pengguna
@@ -618,7 +618,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildBankInfo('Bank Mandiri', usernameFromEmail, userName),
+                _buildBankInfo('Bank Mandiri', norekFromEmail, userName),
               ],
             ),
           ),
