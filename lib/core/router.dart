@@ -109,9 +109,9 @@ final GoRouter router = GoRouter(
 
     //  Categories routes
     GoRoute(
-      path: '/categories/:categoryId',
+      path: '/categories/:id',
       builder: (context, state) {
-        final categoryId = state.pathParameters['categoryId'] ?? '';
+        final categoryId = state.pathParameters['id'] ?? '';
         return CategoryDetailPage(categoryId: categoryId);
       },
     ),

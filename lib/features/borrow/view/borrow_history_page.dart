@@ -388,7 +388,9 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                   // Tombol kembalikan hanya muncul jika:
                   // 1. Belum dikembalikan
                   // 2. Status bukan pending
-                  if (!hasReturned && !isPending && !isLate && !isPendingReturn)
+                  if (borrow.status == BorrowStatus.active ||
+                      borrow.status ==
+                          BorrowStatus.overdue) // Hanya aktif atau terlambat
                     ElevatedButton(
                       onPressed: () {
                         _showReturnConfirmation(borrow.id);
@@ -398,6 +400,113 @@ class _BorrowHistoryPageState extends ConsumerState<BorrowHistoryPage> {
                         minimumSize: const Size.fromHeight(40),
                       ),
                       child: const Text('KEMBALIKAN BUKU'),
+                    ),
+// Untuk peminjaman yang ditolak
+                  if (borrow.status == BorrowStatus.rejected &&
+                      borrow.rejectReason != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.cancel_outlined,
+                                    color: Colors.red.shade700),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Peminjaman Ditolak',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Alasan: ${borrow.rejectReason}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.red.shade700,
+                              ),
+                            ),
+                            if (borrow.rejectDate != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Tanggal: ${dateFormat.format(borrow.rejectDate!)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  //  tampilan feedback untuk penolakan pengembalian
+                  if (borrow.returnRejectReason != null &&
+                      borrow.returnRejectReason!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.warning_amber,
+                                    color: Colors.orange.shade700),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Pengembalian Ditolak',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Alasan: ${borrow.returnRejectReason}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                            if (borrow.rejectDate != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Tanggal: ${dateFormat.format(borrow.rejectDate!)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
 
                   // Tombol bayar denda muncul jika:

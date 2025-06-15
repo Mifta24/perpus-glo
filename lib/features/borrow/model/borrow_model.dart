@@ -8,6 +8,7 @@ enum BorrowStatus {
   returned, // Sudah dikembalikan
   overdue, // Terlambat
   rejected, // Ditolak
+  rejectedReturn, // Penolakan pengembalian
   lost // Hilang
 }
 
@@ -26,6 +27,8 @@ extension BorrowStatusExtension on BorrowStatus {
         return 'Terlambat';
       case BorrowStatus.rejected:
         return 'Ditolak';
+      case BorrowStatus.rejectedReturn:
+        return 'Pengembalian Ditolak';
       case BorrowStatus.lost:
         return 'Hilang';
     }
@@ -45,6 +48,8 @@ extension BorrowStatusExtension on BorrowStatus {
         return Colors.orange;
       case BorrowStatus.rejected:
         return Colors.red.shade700;
+      case BorrowStatus.rejectedReturn:
+        return Colors.red.shade800;
       case BorrowStatus.lost:
         return Colors.red;
     }
@@ -69,6 +74,11 @@ class BorrowModel {
   final DateTime? rejectDate;
   final String? rejectedBy;
   final String? rejectReason;
+
+  // Tambahan field untuk penolakan pengembalian
+  final DateTime? returnRejectDate;  // Tanggal penolakan pengembalian
+  final String? returnRejectedBy;    // ID admin yang menolak pengembalian
+  final String? returnRejectReason;  // Alasan penolakan pengembalian
 
 // Properti tambahan untuk UI, tidak disimpan di Firestore
   final String? bookTitle;
@@ -98,6 +108,9 @@ class BorrowModel {
     this.booksAuthor,
     this.userName,
     this.userEmail,
+    this.returnRejectDate,
+    this.returnRejectedBy,
+    this.returnRejectReason,
   });
 
   factory BorrowModel.fromJson(Map<String, dynamic> json) {
@@ -124,6 +137,9 @@ class BorrowModel {
       bookCover: json['bookCover'] as String?,
       userName: json['userName'] as String?,
       userEmail: json['userEmail'] as String?,
+      returnRejectDate: (json['returnRejectDate'] as Timestamp?)?.toDate(),
+      returnRejectedBy: json['returnRejectedBy'] as String?,
+      returnRejectReason: json['returnRejectReason'] as String?,
     );
   }
 
@@ -171,7 +187,15 @@ class BorrowModel {
       'rejectReason': rejectReason,
 
       // UI properties tidak disimpan ke Firestore
+      'bookTitle': bookTitle,
+      'bookCover': bookCover,
+      'userName': userName,
+      'userEmail': userEmail,
 
+      // Penolakan pengembalian
+      'returnRejectDate': returnRejectDate,
+      'returnRejectedBy': returnRejectedBy,
+      'returnRejectReason': returnRejectReason,
     };
   }
 
@@ -195,6 +219,9 @@ class BorrowModel {
     String? bookTitle,
     String? bookCover,
     String? userName,
+    DateTime? returnRejectDate,
+    String? returnRejectedBy,
+    String? returnRejectReason,
   }) {
     return BorrowModel(
       id: id ?? this.id,
@@ -216,6 +243,9 @@ class BorrowModel {
       bookCover: bookCover ?? this.bookCover,
       userName: userName ?? this.userName,
       userEmail: userEmail ?? this.userEmail,
+      returnRejectDate: returnRejectDate ?? this.returnRejectDate,
+      returnRejectedBy: returnRejectedBy ?? this.returnRejectedBy,
+      returnRejectReason: returnRejectReason ?? this.returnRejectReason,
     );
   }
 

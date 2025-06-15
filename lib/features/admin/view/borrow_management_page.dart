@@ -20,6 +20,7 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
   final DateFormat _dateFormat = DateFormat('dd MMM yyyy');
+  bool isLoading = false;
 
   @override
   void initState() {
@@ -393,7 +394,7 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
               ),
             ),
 
-          // Action buttons untuk pendingReturn - TAMBAHKAN INI
+          // Tombol untuk menolak pengembalian
           if (isPendingReturn)
             Container(
               padding: const EdgeInsets.all(12),
@@ -404,28 +405,109 @@ class _BorrowManagementPageState extends ConsumerState<BorrowManagementPage>
               ),
               child: Row(
                 children: [
+                  // Tombol Tolak Pengembalian
                   Expanded(
-                    child: ElevatedButton(
+                    child: OutlinedButton.icon(
+                      onPressed: isLoading
+                          ? null
+                          : () => _showRejectReturnDialog(borrow.id),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                      icon: const Icon(Icons.cancel),
+                      label: const Text('TOLAK'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Tombol Konfirmasi Pengembalian (yang sudah ada)
+                  Expanded(
+                    child: ElevatedButton.icon(
                       onPressed:
                           isLoading ? null : () => _confirmReturn(borrow.id),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.teal,
                       ),
-                      child: isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text('KONFIRMASI PENGEMBALIAN'),
+                      icon: const Icon(Icons.check_circle),
+                      label: const Text('KONFIRMASI'),
                     ),
                   ),
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  // Dialog untuk memasukkan alasan penolakan
+  void _showRejectReturnDialog(String borrowId) {
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tolak Pengembalian'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Berikan alasan penolakan pengembalian:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                hintText: 'Contoh: Kondisi buku rusak',
+                labelText: 'Alasan',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('BATAL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Alasan penolakan harus diisi'),
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+
+              setState(() {
+                isLoading = true;
+              });
+
+              final success = await ref
+                  .read(borrowControllerProvider.notifier)
+                  .rejectReturn(borrowId, reasonController.text.trim());
+
+              if (mounted) {
+                setState(() {
+                  isLoading = false;
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success
+                        ? 'Pengembalian berhasil ditolak'
+                        : 'Gagal menolak pengembalian'),
+                    backgroundColor: success ? Colors.orange : Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('TOLAK'),
+          ),
         ],
       ),
     );

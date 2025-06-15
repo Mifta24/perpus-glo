@@ -149,6 +149,24 @@ class BorrowController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  // Method untuk menolak pengembalian
+  Future<bool> rejectReturn(String borrowId, String reason) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.rejectReturn(borrowId, reason);
+
+      // Refresh data jika diperlukan
+      ref.invalidate(pendingReturnBorrowsProvider);
+      ref.invalidate(userBorrowHistoryProvider);
+
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
+  }
+
   // Add returnBook method
   Future<bool> returnBook(String borrowId) async {
     state = const AsyncValue.loading();

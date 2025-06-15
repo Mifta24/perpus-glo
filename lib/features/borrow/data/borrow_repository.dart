@@ -629,7 +629,77 @@ class BorrowRepository {
     }
   }
 
-// Di BorrowRepository
+
+Future<void> rejectReturn(String borrowId, String reason) async {
+  final adminId = _auth.currentUser?.uid;
+  if (adminId == null) {
+    throw Exception('Admin tidak terautentikasi');
+  }
+
+  try {
+    // Get borrow document
+    final borrowDoc = await _borrowsRef.doc(borrowId).get();
+    if (!borrowDoc.exists) {
+      throw Exception('Data peminjaman tidak ditemukan');
+    }
+
+    final borrowData = borrowDoc.data() as Map<String, dynamic>;
+    final userId = borrowData['userId'] as String;
+    final bookId = borrowData['bookId'] as String;
+    final status = borrowData['status'] as String;
+
+    // Verify status is pendingReturn
+    if (status.toLowerCase() != 'pendingreturn') {
+      throw Exception('Status peminjaman bukan pengembalian tertunda');
+    }
+
+    // Update borrow document: kembali ke status active atau overdue
+    final now = DateTime.now();
+    final dueDate = (borrowData['dueDate'] as Timestamp).toDate();
+    final isLate = now.isAfter(dueDate);
+    final newStatus = isLate ? 'overdue' : 'active';
+
+    await _borrowsRef.doc(borrowId).update({
+      'status': newStatus,
+      'returnRejectDate': Timestamp.fromDate(now),
+      'returnRejectedBy': adminId,
+      'returnRejectReason': reason,
+      'returnRequestDate': null, // Reset permintaan pengembalian
+    });
+
+    // Kirim notifikasi ke user jika ada implementasi notifikasi
+    if (_ref?.read(notificationServiceProvider) != null) {
+      try {
+        // Ambil data buku untuk notifikasi
+        final bookDoc = await _booksRef.doc(bookId).get();
+        if (bookDoc.exists) {
+          final bookData = bookDoc.data() as Map<String, dynamic>;
+          final bookTitle = bookData['title'] as String;
+
+          // Kirim notifikasi ke user
+          final notificationService = _ref!.read(notificationServiceProvider);
+          await notificationService.createNotificationForUser(
+            userId: userId,
+            title: 'Permintaan Pengembalian Ditolak',
+            body: 'Permintaan pengembalian untuk buku "$bookTitle" ditolak dengan alasan: $reason',
+            type: NotificationType.returnRejected,
+            data: {
+              'borrowId': borrowId,
+              'bookId': bookId,
+              'reason': reason,
+            },
+          );
+        }
+      } catch (e) {
+        print('Error sending notification: $e');
+        // Continue even if notification fails
+      }
+    }
+  } catch (e) {
+    print("Error rejecting return: $e");
+    throw Exception('Gagal menolak pengembalian: ${e.toString()}');
+  }
+}
   Future<void> confirmReturn(String borrowId) async {
     final adminId = currentUserId;
     if (adminId == null) {

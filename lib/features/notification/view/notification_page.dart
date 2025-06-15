@@ -185,6 +185,10 @@ class NotificationPage extends ConsumerWidget {
         icon = Icons.cancel;
         color = Colors.red;
         break;
+      case NotificationType.returnRejected:
+        icon = Icons.block;
+        color = Colors.redAccent;
+        break;
       case NotificationType.borrowRequestAdmin:
         icon = Icons.pending_actions;
         color = Colors.purple;
@@ -260,6 +264,7 @@ class NotificationPage extends ConsumerWidget {
         break;
 
       case NotificationType.borrowRequest:
+      case NotificationType.returnRejected:
       case NotificationType.borrowConfirmed:
       case NotificationType.borrowRejected:
         final bookId = notification.data?['bookId'] as String?;
