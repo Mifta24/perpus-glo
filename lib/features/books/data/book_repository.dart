@@ -26,7 +26,7 @@ class BookRepository {
   // Get books by category
   Stream<List<BookModel>> getBooksByCategory(String categoryId) {
     return _booksRef
-        .where('categoryId', isEqualTo: categoryId)
+        .where('category', isEqualTo: categoryId)
         .orderBy('title')
         .snapshots()
         .map((snapshot) {

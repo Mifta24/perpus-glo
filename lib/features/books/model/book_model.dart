@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BookModel {
-  final String? id; // Ubah menjadi nullable (opsional)
+  final String id; // Ubah menjadi nullable (opsional)
   final String title;
   final String author;
   final String coverUrl;
@@ -12,7 +12,7 @@ class BookModel {
   final DateTime publishedDate;
 
   BookModel({
-    this.id, // Buat id menjadi opsional
+    required this.id, 
     required this.title,
     required this.author,
     required this.coverUrl,
@@ -25,7 +25,7 @@ class BookModel {
 
   factory BookModel.fromJson(Map<String, dynamic> json) {
     return BookModel(
-      id: json['id'] as String?, // Tambahkan id jika ada
+      id: json['id'] as String, // Tambahkan id jika ada
       title: json['title'] as String,
       author: json['author'] as String,
       coverUrl: json['coverUrl'] as String,

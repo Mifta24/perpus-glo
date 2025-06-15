@@ -637,6 +637,9 @@ class _AdminSettingsPageState extends ConsumerState<AdminSettingsPage>
       case NotificationType.bookReturned:
         // Tidak ada navigasi khusus
         break;
+      case NotificationType.returnRejected:
+        // context.push('/admin/returns/rejected');
+        break;
     }
   }
 
@@ -694,6 +697,8 @@ class _AdminSettingsPageState extends ConsumerState<AdminSettingsPage>
         return Icons.history;
       case NotificationType.bookReturnRequest:
         return Icons.assignment_return;
+      case NotificationType.returnRejected:
+        return Icons.block;
     }
   }
   
@@ -730,6 +735,8 @@ class _AdminSettingsPageState extends ConsumerState<AdminSettingsPage>
         return Colors.red.shade700;
       case NotificationType.bookReturnRequest:
         return Colors.pink;
+      case NotificationType.returnRejected:
+        return Colors.grey;
     }
   }
 }

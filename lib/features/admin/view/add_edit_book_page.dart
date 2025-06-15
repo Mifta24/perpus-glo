@@ -381,7 +381,7 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
       }
 
       final book = BookModel(
-        id: isEditing ? widget.bookId : null, // Set id hanya jika editing
+        id: widget.bookId.toString(), // Set id hanya jika editing
         title: _titleController.text,
         author: _authorController.text,
         coverUrl: coverUrl,
