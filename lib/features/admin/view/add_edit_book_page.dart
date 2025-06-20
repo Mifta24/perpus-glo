@@ -28,6 +28,8 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
   String _selectedCategory = '';
   final _totalStockController = TextEditingController();
   DateTime _publishedDate = DateTime.now();
+  final _coverUrlController =
+      TextEditingController(); // Tambahkan controller untuk URL cover
   File? _imageFile;
   String? _existingImageUrl;
   bool _isLoading = false;
@@ -68,6 +70,8 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
     _authorController.dispose();
     _descriptionController.dispose();
     _totalStockController.dispose();
+    _coverUrlController.dispose();
+    _imageFile = null; // Reset image file on dispose
     super.dispose();
   }
 
@@ -259,43 +263,92 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
     final hasImage = _imageFile != null ||
         (_existingImageUrl != null && _existingImageUrl!.isNotEmpty);
 
-    return GestureDetector(
-      onTap: _pickImage,
-      child: Container(
-        width: 200,
-        height: 250,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(12),
-          image: hasImage
-              ? DecorationImage(
-                  image: _imageFile != null
-                      ? FileImage(_imageFile!) as ImageProvider
-                      : NetworkImage(_existingImageUrl!),
-                  fit: BoxFit.cover,
-                )
-              : null,
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () => _showImageSourceOptions(),
+          child: Container(
+            width: 200,
+            height: 250,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+              image: hasImage
+                  ? DecorationImage(
+                      image: _imageFile != null
+                          ? FileImage(_imageFile!) as ImageProvider
+                          : NetworkImage(_existingImageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: hasImage
+                ? null
+                : const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate,
+                        size: 50,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Tambahkan Cover',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ),
-        child: hasImage
-            ? null
-            : const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.add_photo_alternate,
-                    size: 50,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Tambahkan Cover',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+        if (hasImage) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _imageFile = null;
+                _existingImageUrl = null;
+              });
+            },
+            icon: const Icon(Icons.delete, color: Colors.red),
+            label: const Text(
+              'Hapus Cover',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Pilih dari Galeri'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('Masukkan URL Gambar'),
+              onTap: () {
+                Navigator.pop(context);
+                _showUrlInputDialog();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -340,25 +393,29 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
     });
 
     // Upload image if selected
-    // if (_imageFile != null) {
-    //   try {
-    //     final storageRef = FirebaseService.storage
-    //         .ref()
-    //         .child('book_covers/${DateTime.now().millisecondsSinceEpoch}.jpg');
+    if (_imageFile != null) {
+      try {
+        final storageRef = FirebaseService.storage
+            .ref()
+            .child('book_covers/${DateTime.now().millisecondsSinceEpoch}.jpg');
 
-    //     final uploadTask = await storageRef.putFile(_imageFile!);
+        final uploadTask = await storageRef.putFile(_imageFile!);
 
-    //     coverUrl = await uploadTask.ref.getDownloadURL();
-    //   } catch (e) {
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       SnackBar(content: Text('Error uploading image: $e')),
-    //     );
-    //     setState(() {
-    //       _isLoading = false;
-    //     });
-    //     return;
-    //   }
-    // }
+        coverUrl = await uploadTask.ref.getDownloadURL();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading image: $e')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+    // Use existing URL if entered via dialog
+    else if (_coverUrlController.text.isNotEmpty) {
+      coverUrl = _coverUrlController.text;
+    }
 
     // Create or update book
     try {
@@ -432,5 +489,62 @@ class _AddEditBookPageState extends ConsumerState<AddEditBookPage> {
         });
       }
     }
+  }
+
+  // Di file add_edit_book_page.dart, tambahkan metode untuk menampilkan dialog input URL
+  Future<void> _showUrlInputDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambahkan URL Cover'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _coverUrlController,
+              decoration: const InputDecoration(
+                labelText: 'URL Gambar',
+                hintText: 'https://example.com/image.jpg',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
+            ),
+            const SizedBox(height: 16),
+            if (_coverUrlController.text.isNotEmpty)
+              SizedBox(
+                height: 100,
+                child: Image.network(
+                  _coverUrlController.text,
+                  errorBuilder: (context, error, stackTrace) => const Center(
+                    child: Icon(Icons.broken_image, color: Colors.red),
+                  ),
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('BATAL'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (_coverUrlController.text.isNotEmpty) {
+                setState(() {
+                  _existingImageUrl = _coverUrlController.text;
+                  _imageFile = null; // Reset file picker selection
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('SIMPAN'),
+          ),
+        ],
+      ),
+    );
   }
 }
