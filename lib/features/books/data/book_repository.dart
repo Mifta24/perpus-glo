@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/firebase_service.dart';
 import '../model/book_model.dart';
+// import '../providers/category_provider.dart';
+
 
 // BookRepository digunakan untuk mengambil data buku dari Firestore
 class BookRepository {
@@ -12,6 +14,7 @@ class BookRepository {
   // Collection references
   CollectionReference get _booksRef => _firestore.collection('books');
   CollectionReference get _usersRef => _firestore.collection('users');
+  CollectionReference get _categoriesRef => _firestore.collection('categories');
 
   // Get all books
   Stream<List<BookModel>> getBooks() {
@@ -24,19 +27,38 @@ class BookRepository {
   }
 
   // Get books by category
-  Stream<List<BookModel>> getBooksByCategory(String categoryId) {
-    return _booksRef
-        .where('category', isEqualTo: categoryId)
-        .orderBy('title')
+  Stream<List<BookModel>> getBooksByCategory(String categoryId) async* {
+    // Dapatkan kategori berdasarkan ID untuk mendapatkan nama
+    final categoryDoc = await _categoriesRef.doc(categoryId).get();
+
+    if (!categoryDoc.exists) {
+      yield [];
+      return;
+    }
+
+    final categoryData = categoryDoc.data() as Map<String, dynamic>;
+    final categoryName = categoryData['name'] as String;
+
+    print("Looking for books with category name: $categoryName"); // Debug log
+
+    // Gunakan nama kategori untuk query
+    yield* _booksRef
+        .where('category', isEqualTo: categoryName)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
+      final books = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
+        print("Book found: ${doc.id}, ${data['title']}"); // Debug log
+
         return BookModel.fromJson({
           'id': doc.id,
           ...data,
         });
       }).toList();
+
+      print(
+          "Total books found for category $categoryName: ${books.length}"); // Debug log
+      return books;
     });
   }
 
@@ -242,17 +264,27 @@ class BookRepository {
   }
 
   Stream<List<BookModel>> getLatestBooks({required int limit}) {
+    print("Getting latest books with limit: $limit"); // Debug
+
     return _booksRef
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
+      print(
+          "Latest books snapshot has ${snapshot.docs.length} documents"); // Debug
+
+      final books = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        print("Book data: ${doc.id} - ${data['title']}"); // Debug
+
         return BookModel.fromJson({
           'id': doc.id,
-          ...doc.data() as Map<String, dynamic>,
+          ...data,
         });
       }).toList();
+
+      return books;
     });
   }
 
@@ -288,12 +320,12 @@ class BookRepository {
       final borrowsRef = _firestore.collection('borrows');
       final activeBorrows = await borrowsRef
           .where('bookId', isEqualTo: bookId)
-          .where('status', whereIn: ['active', 'overdue'])
-          .get();
-      
+          .where('status', whereIn: ['active', 'overdue']).get();
+
       // Jika buku masih dipinjam, berikan error
       if (activeBorrows.docs.isNotEmpty) {
-        throw Exception('Buku ini masih dipinjam oleh pengguna dan tidak dapat dihapus');
+        throw Exception(
+            'Buku ini masih dipinjam oleh pengguna dan tidak dapat dihapus');
       }
 
       // Log aktivitas penghapusan buku
@@ -305,7 +337,8 @@ class BookRepository {
         'metadata': {
           'bookId': bookId,
           // Simpan data buku sebelum dihapus untuk history
-          'bookInfo': await _booksRef.doc(bookId).get().then((doc) => doc.data()),
+          'bookInfo':
+              await _booksRef.doc(bookId).get().then((doc) => doc.data()),
         },
       });
 

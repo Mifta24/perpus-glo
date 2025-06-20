@@ -482,31 +482,41 @@ class HomePage extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 8),
+        
+        // Tambahkan debugging info
         booksAsync.when(
           data: (books) {
+            print("Latest books data loaded: ${books.length} items"); // Debug
+            
             if (books.isEmpty) {
               return const SizedBox(
                 height: 200,
-                child: Center(child: Text('Tidak ada buku')),
+                child: Center(child: Text('Belum ada buku terbaru')),
               );
             }
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: books.length > 5 ? 5 : books.length,
-              itemBuilder: (context, index) {
-                return _buildHorizontalBookCard(context, books[index]);
-              },
+            
+            // Gunakan Column + SingleChildScrollView untuk mengatasi masalah ListView dalam ListView
+            return Column(
+              children: books.take(5).map((book) {
+                print("Rendering book: ${book.title}"); // Debug
+                return _buildHorizontalBookCard(context, book);
+              }).toList(),
             );
           },
           loading: () => const SizedBox(
             height: 200,
             child: Center(child: LoadingIndicator()),
           ),
-          error: (error, _) => SizedBox(
-            height: 200,
-            child: Center(child: Text('Error: ${error.toString()}')),
-          ),
+          error: (error, stackTrace) {
+            print("Latest books error: $error"); // Debug
+            print(stackTrace); // Debug stack trace
+            return SizedBox(
+              height: 200,
+              child: Center(
+                child: Text('Error: ${error.toString()}'),
+              ),
+            );
+          },
         ),
       ],
     );
