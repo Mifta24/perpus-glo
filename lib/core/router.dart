@@ -11,6 +11,7 @@ import 'package:perpusglo/features/admin/view/user_edit_page.dart';
 import 'package:perpusglo/features/admin/view/user_search_results_page.dart';
 import 'package:perpusglo/features/borrow/view/debug_overdue_page.dart';
 import 'package:perpusglo/features/categories/view/category_detail_page.dart';
+import 'package:perpusglo/features/home/view/splash_screen.dart';
 import '../features/auth/view/login_page.dart';
 import '../features/auth/view/register_page.dart';
 import '../features/home/view/main_navigation.dart';
@@ -123,6 +124,11 @@ final GoRouter router = GoRouter(
     return null;
   },
   routes: [
+    // Splash Screen Route
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const SplashScreenWidget(),
+    ),
     // Auth Routes
     GoRoute(
       path: '/login',

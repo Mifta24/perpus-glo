@@ -417,20 +417,20 @@ class HomePage extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Kategori',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            TextButton(
-              onPressed: () => context.push('/categories'),
-              child: const Text('Lihat Semua'),
-            ),
+            // TextButton(
+            //   onPressed: () => context.push('/categories'),
+            //   child: const Text('Lihat Semua'),
+            // ),
           ],
         ),
         const SizedBox(height: 8),
