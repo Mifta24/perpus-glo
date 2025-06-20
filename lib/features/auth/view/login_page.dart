@@ -106,13 +106,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.email),
+                        hintText: 'email@global.ac.id',
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Email tidak boleh kosong';
                         }
                         if (!value.contains('@')) {
-                          return 'Email tidak valid';
+                          return 'Format email tidak valid';
                         }
                         return null;
                       },
@@ -172,10 +173,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     if (authState.hasError)
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
-                        child: Text(
-                          'Error: ${authState.error}',
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline,
+                                  color: Colors.red.shade700),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  authState.error.toString(),
+                                  style: TextStyle(color: Colors.red.shade700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                   ],

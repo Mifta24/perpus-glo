@@ -75,11 +75,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     const Text(
                       'Daftar Akun',
                       style:
                           TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Gunakan email institusi (@global.ac.id)',
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -107,13 +113,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.email),
+                        hintText: 'email@global.ac.id',
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Email tidak boleh kosong';
                         }
                         if (!value.contains('@')) {
-                          return 'Email tidak valid';
+                          return 'Format email tidak valid';
+                        }
+                        if (!value.toLowerCase().endsWith('@global.ac.id')) {
+                          return 'Hanya email dengan domain @global.ac.id yang diperbolehkan';
                         }
                         return null;
                       },
@@ -206,10 +216,26 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     if (authState.hasError)
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
-                        child: Text(
-                          'Error: ${authState.error}',
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline,
+                                  color: Colors.red.shade700),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  authState.error.toString(),
+                                  style: TextStyle(color: Colors.red.shade700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                   ],

@@ -56,7 +56,13 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
       state = const AsyncValue.data(null);
       return true;
     } on FirebaseAuthException catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+      // Perbaikan pesan error yang lebih user-friendly
+      String errorMessage = _getUserFriendlyAuthError(e);
+      state = AsyncValue.error(errorMessage, StackTrace.current);
+      return false;
+    } catch (e) {
+      state = AsyncValue.error(
+          'Terjadi kesalahan: ${e.toString()}', StackTrace.current);
       return false;
     }
   }
@@ -85,7 +91,13 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
       state = const AsyncValue.data(null);
       return true;
     } on FirebaseAuthException catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+      // Perbaikan pesan error yang lebih user-friendly
+      String errorMessage = _getUserFriendlyAuthError(e);
+      state = AsyncValue.error(errorMessage, StackTrace.current);
+      return false;
+    } catch (e) {
+      state = AsyncValue.error(
+          'Terjadi kesalahan: ${e.toString()}', StackTrace.current);
       return false;
     }
   }
@@ -100,7 +112,7 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  // Staff login 
+  // Staff login
   Future<bool> staffLogin(String email, String password) async {
     state = const AsyncValue.loading();
     try {
@@ -128,6 +140,36 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
 
   Future<void> logout() async {
     await _repository.signOut();
+  }
+
+  // Helper method untuk menerjemahkan pesan error Firebase menjadi user friendly
+  String _getUserFriendlyAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        return 'Email tidak terdaftar. Silahkan daftar terlebih dahulu.';
+      case 'wrong-password':
+        return 'Password yang Anda masukkan salah.';
+      case 'invalid-email':
+        return 'Format email tidak valid.';
+      case 'email-already-in-use':
+        return 'Email sudah digunakan. Silakan gunakan email lain.';
+      case 'weak-password':
+        return 'Password terlalu lemah. Gunakan minimal 6 karakter.';
+      case 'operation-not-allowed':
+        return 'Operasi tidak diizinkan. Hubungi administrator.';
+      case 'too-many-requests':
+        return 'Terlalu banyak percobaan login. Coba lagi nanti.';
+      case 'network-request-failed':
+        return 'Gagal terhubung ke server. Periksa koneksi internet Anda.';
+      case 'invalid-credential':
+        return 'Kredensial tidak valid. Periksa kembali email dan password Anda.';
+      case 'account-exists-with-different-credential':
+        return 'Akun sudah ada dengan metode login yang berbeda.';
+      case 'user-disabled':
+        return 'Akun Anda telah dinonaktifkan. Hubungi administrator.';
+      default:
+        return 'Terjadi kesalahan: ${e.message}';
+    }
   }
 }
 
