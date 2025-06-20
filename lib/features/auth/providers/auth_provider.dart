@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,12 +36,36 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
   final HistoryRepository _historyRepository = HistoryRepository();
 
   AuthController(this._repository) : super(const AsyncValue.data(null));
+// Properti untuk menyimpan route selanjutnya
+  String _nextRoute = '/home';
 
+// Getter untuk mendapatkan route setelah login
+  String get nextRouteAfterLogin => _nextRoute;
+  
   Future<bool> login(String email, String password) async {
     state = const AsyncValue.loading();
     try {
       // Proses login
-      await _repository.signInWithEmailAndPassword(email, password);
+      final userCredential =
+          await _repository.signInWithEmailAndPassword(email, password);
+
+      // Get user role
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user?.uid)
+          .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final role = userData['role'] as String? ?? 'user';
+
+        // Setel route untuk navigasi setelah login
+        if (role == 'admin' || role == 'librarian') {
+          _nextRoute = '/admin';
+        } else {
+          _nextRoute = '/home';
+        }
+      }
 
       // Catat aktivitas dalam try-catch terpisah
       try {

@@ -20,135 +20,160 @@ class HomePage extends ConsumerWidget {
       data: (profile) => profile?.name ?? 'Pengguna',
       orElse: () => 'Pengguna',
     );
+// Redirect admin dan pustakawan ke dashboard admin
+    return profileAsync.when(
+      data: (profile) {
+        // Jika user adalah admin atau pustakawan, redirect ke dashboard admin
+        if (profile != null && (profile.isAdmin || profile.isLibrarian)) {
+          // Gunakan Future.microtask agar redirect terjadi setelah build selesai
+          Future.microtask(() => context.go('/admin'));
+          // Sementara itu, tampilkan loading indicator
+          return const Scaffold(
+            body: Center(child: LoadingIndicator()),
+          );
+        }
 
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            // Refresh data
-            ref.refresh(popularBooksProvider);
-            ref.refresh(latestBooksProvider);
-            ref.refresh(activeBorrowsProvider);
-            ref.refresh(categoriesProvider);
-          },
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverAppBar(
-                floating: true,
-                pinned: false,
-                expandedHeight: 120,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Theme.of(context).primaryColor,
-                          Theme.of(context).primaryColor.withOpacity(0.8),
+        // Lanjutkan dengan UI normal untuk user biasa
+        final userName = profile?.name ?? 'Pengguna';
+
+        return Scaffold(
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                // Refresh data
+                ref.refresh(popularBooksProvider);
+                ref.refresh(latestBooksProvider);
+                ref.refresh(activeBorrowsProvider);
+                ref.refresh(categoriesProvider);
+              },
+              child: CustomScrollView(
+                slivers: [
+                  // App Bar
+                  SliverAppBar(
+                    floating: true,
+                    pinned: false,
+                    expandedHeight: 120,
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Theme.of(context).primaryColor,
+                              Theme.of(context).primaryColor.withOpacity(0.8),
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Selamat Datang,',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                            Text(
+                              userName,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // jarak antara app bar dan search bar
+                    toolbarHeight: 5,
+
+                    // Search bar
+                    // bottom: PreferredSize(
+                    //   preferredSize: const Size.fromHeight(60),
+                    //   child: Container(
+                    //     height: 50,
+                    //     margin:
+                    //         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    //     decoration: BoxDecoration(
+                    //       color: Colors.white,
+                    //       borderRadius: BorderRadius.circular(25),
+                    //       boxShadow: [
+                    //         BoxShadow(
+                    //           color: Colors.black.withOpacity(0.1),
+                    //           blurRadius: 8,
+                    //           offset: const Offset(0, 2),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //     child: GestureDetector(
+                    //       onTap: () => context.push('/search'),
+                    //       child: AbsorbPointer(
+                    //         child: TextField(
+                    //           decoration: InputDecoration(
+                    //             hintText: 'Cari buku...',
+                    //             prefixIcon: const Icon(Icons.search),
+                    //             border: InputBorder.none,
+                    //             contentPadding: const EdgeInsets.symmetric(
+                    //                 horizontal: 16, vertical: 14),
+                    //             filled: true,
+                    //             fillColor: Colors.white,
+                    //             enabledBorder: OutlineInputBorder(
+                    //               borderRadius: BorderRadius.circular(25),
+                    //               borderSide: BorderSide.none,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
+                  ),
+
+                  // Main content
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Active borrows
+                          const SizedBox(height: 24),
+                          _buildActiveBorrowsSection(context, ref),
+
+                          // Popular books section
+                          const SizedBox(height: 24),
+                          _buildPopularBooksSection(context, ref),
+
+                          // Categories section
+                          const SizedBox(height: 24),
+                          _buildCategoriesSection(context, ref),
+
+                          // Latest books section
+                          const SizedBox(height: 24),
+                          _buildLatestBooksSection(context, ref),
+
+                          const SizedBox(height: 32),
                         ],
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Selamat Datang,',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                        ),
-                        Text(
-                          userName,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-                // jarak antara app bar dan search bar
-                toolbarHeight: 5,
-
-                // Search bar
-                // bottom: PreferredSize(
-                //   preferredSize: const Size.fromHeight(60),
-                //   child: Container(
-                //     height: 50,
-                //     margin:
-                //         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                //     decoration: BoxDecoration(
-                //       color: Colors.white,
-                //       borderRadius: BorderRadius.circular(25),
-                //       boxShadow: [
-                //         BoxShadow(
-                //           color: Colors.black.withOpacity(0.1),
-                //           blurRadius: 8,
-                //           offset: const Offset(0, 2),
-                //         ),
-                //       ],
-                //     ),
-                //     child: GestureDetector(
-                //       onTap: () => context.push('/search'),
-                //       child: AbsorbPointer(
-                //         child: TextField(
-                //           decoration: InputDecoration(
-                //             hintText: 'Cari buku...',
-                //             prefixIcon: const Icon(Icons.search),
-                //             border: InputBorder.none,
-                //             contentPadding: const EdgeInsets.symmetric(
-                //                 horizontal: 16, vertical: 14),
-                //             filled: true,
-                //             fillColor: Colors.white,
-                //             enabledBorder: OutlineInputBorder(
-                //               borderRadius: BorderRadius.circular(25),
-                //               borderSide: BorderSide.none,
-                //             ),
-                //           ),
-                //         ),
-                //       ),
-                //     ),
-                //   ),
-                // ),
+                ],
               ),
-
-              // Main content
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Active borrows
-                      const SizedBox(height: 24),
-                      _buildActiveBorrowsSection(context, ref),
-
-                      // Popular books section
-                      const SizedBox(height: 24),
-                      _buildPopularBooksSection(context, ref),
-
-                      // Categories section
-                      const SizedBox(height: 24),
-                      _buildCategoriesSection(context, ref),
-
-                      // Latest books section
-                      const SizedBox(height: 24),
-                      _buildLatestBooksSection(context, ref),
-
-                      const SizedBox(height: 32),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
+        );
+      },
+      loading: () => const Scaffold(
+        body: Center(child: LoadingIndicator()),
+      ),
+      error: (error, _) => Scaffold(
+        body: Center(
+          child: Text('Error: ${error.toString()}'),
         ),
       ),
     );

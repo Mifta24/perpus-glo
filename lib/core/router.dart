@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,8 +37,91 @@ import '../features/admin/view/user_management_page.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter router = GoRouter(
-  initialLocation: '/login',
+  // initialLocation: '/login',
   navigatorKey: _rootNavigatorKey,
+  initialLocation: '/',
+
+  // Gabungan dari kedua fungsi redirect
+  redirect: (context, state) async {
+    // 1. Periksa status autentikasi
+    final authState = FirebaseAuth.instance.currentUser;
+    final isLoggedIn = authState != null;
+
+    // 2. Tentukan jenis rute yang diminta
+    final isAdminRoute = state.matchedLocation.startsWith('/admin');
+    final isLoginRoute = state.matchedLocation == '/login';
+    final isRegisterRoute = state.matchedLocation == '/register';
+    final isAdminLoginRoute = state.matchedLocation == '/admin/login';
+    final isAuthRoute = isLoginRoute || isRegisterRoute || isAdminLoginRoute;
+
+    // 3. Logika untuk rute auth (admin dan umum)
+    if (!isLoggedIn) {
+      // Jika belum login
+      if (isAuthRoute) {
+        // Biarkan akses ke halaman auth
+        return null;
+      } else if (isAdminRoute) {
+        // Redirect ke admin login untuk rute admin
+        return '/admin/login';
+      } else {
+        // Redirect ke login untuk rute user biasa
+        return '/login';
+      }
+    }
+
+    // 4. Jika sudah login, periksa role user
+    String? userRole;
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(authState.uid)
+          .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        userRole = userData['role'] as String? ?? 'user';
+      } else {
+        // Jika dokumen user tidak ditemukan, anggap sebagai user biasa
+        userRole = 'user';
+      }
+    } catch (e) {
+      print('Error fetching user role: $e');
+      // Fallback ke user biasa jika terjadi error
+      userRole = 'user';
+    }
+
+    // 5. Redirect berdasarkan role & lokasi
+    if (isLoggedIn) {
+      // 5a. Jika sudah login dan mencoba akses halaman auth
+      if (isLoginRoute || isRegisterRoute) {
+        if (userRole == 'admin' || userRole == 'librarian') {
+          return '/admin'; // Admin/Pustakawan ke dashboard admin
+        } else {
+          return '/home'; // User biasa ke home
+        }
+      }
+
+      // 5b. Jika admin/pustakawan mencoba akses home user
+      if ((userRole == 'admin' || userRole == 'librarian') &&
+          (state.matchedLocation == '/home' || state.matchedLocation == '/')) {
+        return '/admin';
+      }
+
+      // 5c. Jika user biasa mencoba akses rute admin
+      if (userRole == 'user' && isAdminRoute) {
+        return '/home';
+      }
+
+      // 5d. Jika admin/pustakawan mencoba akses admin login
+      if ((userRole == 'admin' || userRole == 'librarian') &&
+          isAdminLoginRoute) {
+        return '/admin';
+      }
+    }
+
+    // Default: tidak ada redirect
+    return null;
+  },
   routes: [
     // Auth Routes
     GoRoute(
@@ -205,45 +289,4 @@ final GoRouter router = GoRouter(
       builder: (context, state) => const DebugOverduePage(),
     ),
   ],
-  // Redirect to login if not authenticated
-  redirect: (context, state) {
-    final isLoggedIn = FirebaseAuth.instance.currentUser != null;
-    final isAdminRoute = state.matchedLocation.startsWith('/admin');
-
-    // Kecualikan admin/login dari redirect
-    final nonAuthRoutes = ['/login', '/register', '/admin/login'];
-
-    // Admin route logic
-    if (isAdminRoute && state.matchedLocation != '/admin/login') {
-      // Untuk memeriksa apakah user adalah admin, kita perlu mengecek state usernya
-      // Di sini kita sederhanakan dengan mengecek apakah user login
-      if (!isLoggedIn) {
-        return '/admin/login';
-      } else if (isLoggedIn && state.matchedLocation == '/admin/login') {
-        // Jika sudah login, redirect ke dashboard admin
-        return '/admin';
-      }
-
-      // Sebenarnya di sini kita perlu cek role user
-      // Namun karena keterbatasan akses state di router,
-      // kita biarkan pengecekan role dilakukan di halaman admin
-    }
-
-    // User route logic (non-admin)
-    if (!isAdminRoute) {
-      // If not logged in and trying to access protected route, redirect to login
-      if (!isLoggedIn && !nonAuthRoutes.contains(state.matchedLocation)) {
-        return '/login';
-      }
-
-      // If logged in and trying to access login/register, redirect to home
-      if (isLoggedIn &&
-          (state.matchedLocation == '/login' ||
-              state.matchedLocation == '/register')) {
-        return '/home';
-      }
-    }
-
-    return null;
-  },
 );
